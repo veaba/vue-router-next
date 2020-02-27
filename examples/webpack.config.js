@@ -86,6 +86,7 @@ module.exports = {
       template: resolve(__dirname, 'index.html'),
     }),
     new webpack.DefinePlugin({
+      __DEV__: JSON.stringify(true),
       'process.env': {
         NODE_ENV: JSON.stringify(process.env.NODE_ENV),
       },

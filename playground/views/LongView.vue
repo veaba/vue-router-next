@@ -6,8 +6,7 @@
     <p class="long">
       <router-link
         :to="{ name: 'long', params: { n: Number(route.params.n || 0) + 1 } }"
-        >/long-{{ Number(route.params.n || 0) + 1 }}</router-link
-      >
+        >/long-{{ Number(route.params.n || 0) + 1 }}</router-link>
     </p>
   </section>
 </template>

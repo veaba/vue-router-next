@@ -1,3 +1,7 @@
+.idea
+.vscode
+__build__
+__tests__
 dist
 examples_dist
 node_modules
