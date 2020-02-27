@@ -1,6 +1,6 @@
 import { createRouter, createHashHistory } from '../../src'
 import { RouteComponent } from '../../src/types'
-import { createApp } from 'vue'
+import { createApp,defineComponent } from 'vue'
 
 const component: RouteComponent = {
   template: `<div>A component</div>`,
@@ -23,8 +23,25 @@ const router = createRouter({
   ],
 })
 
+const App=defineComponent({
+  template:`
+  <div> {{router}}</div>
+  `,
+  setup(){
+    return {
+      router
+    }
+  }
 
-const app = createApp({})
+})
 
+declare global {
+  interface Window {
+    vm: any;
+  }
+}
+const app = createApp(App)
 app.use(router)
 app.mount('#app')
+
+window.vm=app
