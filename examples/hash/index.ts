@@ -1,13 +1,30 @@
-import { createRouter, createHashHistory } from '../../src'
+import { createRouter, createHashHistory, useRoute } from '../../src'
 import { RouteComponent } from '../../src/types'
-import { createApp,defineComponent } from 'vue'
+import { createApp, defineComponent, computed } from 'vue'
 
 const component: RouteComponent = {
   template: `<div>A component</div>`,
 }
 
 const Home: RouteComponent = {
-  template: `<div>Home</div>`,
+  template: `
+    <div>
+        Home
+       <pre>
+            {{currentLocation}}
+        </pre>
+        
+    </div>`,
+  setup() {
+
+    const route = useRoute()
+    const currentLocation = computed(() => {
+      const { matched, ...rest } = route.value
+      return rest
+
+    })
+    return { currentLocation }
+  },
 }
 
 const Document: RouteComponent = {
@@ -17,21 +34,37 @@ const Document: RouteComponent = {
 const router = createRouter({
   history: createHashHistory('/' + __dirname),
   routes: [
-    { path: '/', component: Home, name: 'home' },
+    { path: '/', component: Home, name: 'home', meta: { h1: true } },
     { path: '/documents/:id', name: 'docs', component: Document },
     { path: encodeURI('/n/€'), name: 'euro', component },
   ],
 })
 
-const App=defineComponent({
-  template:`
-  <div> {{router}}</div>
+const App = defineComponent({
+  template: `
+			<div id="app">
+					<router-view></router-view>
+	
+	      <h2>App route object: </h2>
+				<pre>
+					{{currentLocation}}
+        </pre>
+		
+			</div>
   `,
-  setup(){
+  // $route 作为保留字，无法使用
+  setup() {
+    const route = useRoute()
+    const currentLocation = computed(() => {
+      const { matched, ...rest } = route.value
+      return rest
+
+    })
     return {
-      router
+      currentLocation,
     }
-  }
+
+  },
 
 })
 
@@ -43,5 +76,4 @@ declare global {
 const app = createApp(App)
 app.use(router)
 app.mount('#app')
-
-window.vm=app
+window.vm = app
