@@ -58,12 +58,10 @@ const App = defineComponent({
     const currentLocation = computed(() => {
       const { matched, ...rest } = route.value
       return rest
-
     })
     return {
       currentLocation,
     }
-
   },
 
 })
