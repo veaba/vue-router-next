@@ -1,4 +1,4 @@
-import {createApp} from 'vue'
+import { createApp } from 'vue'
 
 ///<reference path="../src/global.d.ts"/>
 const context = require.context('.', true, /^.{2,}\/index\.ts$/)
@@ -11,13 +11,29 @@ context.keys().forEach(path => {
   return name
 })
 
+// is supported
+const doneArray = [
+  'basic',
+  'encoding',
+  'named-views',
+]
+// not supported yet
+const noYetArray = [
+  'hash-mode',
+  'nested-routes',
+  'named-routes',
+  'route-matching',
+  'active-links',// why not work it ?
+  'redirect',// has error,like will get /redirect/foo,but get  /redirectfoo
+]
 examples.sort()
 
 examples = Array.from(new Set(examples))
 
-
-console.log('examples==>', examples)
-const template={
-  data:{examples}
+examples = examples.map(item => {
+  return doneArray.includes(item) ? ('√ ' + item) : (noYetArray.includes(item) ? ('x ' + item) : item)
+})
+const template = {
+  data: { examples },
 }
 createApp(template).mount('#app')

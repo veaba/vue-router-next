@@ -9,7 +9,8 @@ const Unicode: RouteComponent = { template: '<div>unicode</div>' }
 
 
 const router: any = createRouter({
-  history: createHistory('/' + __dirname),
+  history: createHistory(''),
+  // history: createHistory('/' + __dirname),
   routes: [
     { path: '/', component: Home, name: 'home' },
     { path: '/foo', component: Foo, name: 'foo' },

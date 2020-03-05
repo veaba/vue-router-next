@@ -1,52 +1,43 @@
 import { createRouter, createHistory, useRoute } from '../../src'
-import { RouteComponent } from '../../src/types'
 import { createApp, ref } from 'vue'
-
-const Home: RouteComponent = { template: '<div>home</div>' }
-const Foo: RouteComponent = { template: '<div>foo</div>' }
-const Bar: RouteComponent = { template: '<div>bar</div>' }
-const Unicode: RouteComponent = { template: '<div>unicode</div>' }
-
 
 const router: any = createRouter({
   history: createHistory('/' + __dirname),
   routes: [
-    { path: '/', component: Home, name: 'home' },
-    { path: '/foo', component: Foo, name: 'foo' },
-    { path: '/bar', component: Bar, name: 'bar' },
-    { path: '/é', component: Unicode, name: 'euro' },
+    // todo it dont't work
+    // { path: '/' },
+    // // params are denoted with a colon ":"
+    // { path: '/params/:foo/:bar' },
+    // // a param can be made optional by adding "?"
+    // { path: '/optional-params/:foo?' },
+    // // a param can be followed by a regex pattern in parens
+    // // this route will only be matched if :id is all numbers
+    // { path: '/params-with-regex/:id(\\d+)' },
+    // // asterisk can match anything
+    // { path: '/asterisk/*' },
+    // // make part of the path optional by wrapping with parens and add "?"
+    // { path: '/optional-group/(foo/)?bar' },
   ],
 })
 console.info('==>', '/' + __dirname)
 const app = createApp({
   template: `
-  <div id="app">
-      <h1>Basic</h1>
+  <div>
+        <h1>Route Matching</h1>
       <ul>
         <li><router-link to="/">/</router-link></li>
-        <li><router-link to="/foo">/foo</router-link></li>
-        <li><router-link to="/bar">/bar</router-link></li>
-        <router-link tag="li" to="/bar" :event="['mousedown', 'touchstart']">
-          <a>/bar</a>
-        </router-link>
-        <li><router-link to="/é">/é</router-link></li>
-        <li><router-link to="/é?t=%25ñ">/é?t=%ñ</router-link></li>
-        <li><router-link to="/é#%25ñ">/é#%25ñ</router-link></li>
-        <router-link to="/foo" v-slot="props">
-          <li :class="[props.isActive && 'active', props.isExactActive && 'exact-active']">
-            <a :href="props.href" @click="props.navigate">{{ props.route.path }} (with v-slot).</a>
-          </li>
-        </router-link>
-        <li><router-link to="/foo" replace>/foo (replace)</router-link></li>
+        <li><router-link to="/params/foo/bar">/params/foo/bar</router-link></li>
+        <li><router-link to="/optional-params">/optional-params</router-link></li>
+        <li><router-link to="/optional-params/foo">/optional-params/foo</router-link></li>
+        <li><router-link to="/params-with-regex/123">/params-with-regex/123</router-link></li>
+        <li><router-link to="/params-with-regex/abc">/params-with-regex/abc</router-link></li>
+        <li><router-link to="/asterisk/foo">/asterisk/foo</router-link></li>
+        <li><router-link to="/asterisk/foo/bar">/asterisk/foo/bar</router-link></li>
+        <li><router-link to="/optional-group/bar">/optional-group/bar</router-link></li>
+        <li><router-link to="/optional-group/foo/bar">/optional-group/foo/bar</router-link></li>
       </ul>
-      <button id="navigate-btn" @click="navigateAndIncrement">On Success</button>
-      <pre>
-        {{route}}
-      </pre>
-      <pre id="counter">callback not work ->{{ n }}</pre>
-      <pre id="query-t">{{ route.query.t }}</pre>
-      <pre id="hash">{{ route.hash }}</pre>
-      <router-view class="view"></router-view>
+      <p>Route context</p>
+      <pre>{{ JSON.stringify(route, null, 2) }}</pre>
     </div>
   `,
   setup() {

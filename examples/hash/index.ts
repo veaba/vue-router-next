@@ -42,7 +42,7 @@ const router = createRouter({
 
 const App = defineComponent({
   template: `
-			<div id="app">
+			<div>
 					<router-view></router-view>
 	
 	      <h2>App route object: </h2>

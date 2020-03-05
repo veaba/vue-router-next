@@ -8,11 +8,12 @@
 </head>
 <body>
 <div id="app">
-		<h1>Vue Router Examples</h1>
+		<h1>Vue Router Next Examples</h1>
 		
 		<ul>
 				<li v-for="example in examples">
-						<a :href="example">{{ example}}</a>
+						<a :href="'/'+example.replace(/^.* /,'')"
+						   :style="{color:example[0]==='x'?'red':(example[0]==='√'?'green':'')}">{{ example}}</a>
 				</li>
 		</ul>
 </div>

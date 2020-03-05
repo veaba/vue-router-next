@@ -12,4 +12,37 @@
 <a href="/">&larr; Examples index</a>
 <div id="app"></div>
 </body>
+<script>
+  // match route  script
+  console.info('match start ===>')
+  
+  const appTag = document.querySelector('#app')
+  appTag.addEventListener('click', function(event) {
+    const target = event.target
+    if (target.tagName === 'A') {
+      const spanNode = document.createElement('span')
+      const childNodeSpan = target.querySelector('span')
+      if (childNodeSpan) {
+        target.removeChild(childNodeSpan)
+      }
+      let aText = target.textContent
+      aText = aText.replace(/^.*redirects to/, '').replace(')', '')
+      aText = aText.trim()
+      let spanStr = ''
+      if (location.pathname === '/redirect' + aText) {
+        spanNode.style.color = 'green'
+        spanStr = '/redirect' + aText + '===' + location.pathname + ' --> match success'
+      } else {
+        spanNode.style.color = 'red'
+        spanStr = '/redirect' + aText + '!==' + location.pathname + ' --> match error'
+      }
+      
+      const spanText = document.createTextNode(spanStr)
+      spanNode.appendChild(spanText)
+      target.appendChild(spanNode)
+    }
+    
+  })
+
+</script>
 </html>
