@@ -26,10 +26,12 @@
         target.removeChild(childNodeSpan)
       }
       let aText = target.textContent
+      console.info('aText==>', aText)
+      aText = aText.trim()
       aText = aText.replace(/^.*redirects to/, '').replace(')', '')
       aText = aText.trim()
       let spanStr = ''
-      if (location.pathname === '/redirect' + aText) {
+      if (location.pathname + location.search === '/redirect' + aText) {
         spanNode.style.color = 'green'
         spanStr = '/redirect' + aText + '===' + location.pathname + ' --> match success'
       } else {
