@@ -1,8 +1,8 @@
-import { createRouter, createHistory, useRoute } from '../../src'
+import { createRouter, createWebHistory, useRoute } from '../../src'
 import { createApp, ref } from 'vue'
 
 const router: any = createRouter({
-  history: createHistory('/' + __dirname),
+  history: createWebHistory('/' + __dirname),
   routes: [
     // todo it dont't work
     // { path: '/' },

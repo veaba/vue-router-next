@@ -1,4 +1,4 @@
-import { createRouter, createHistory, useRoute } from '../../src'
+import { createRouter, createWebHistory, useRoute } from '../../src'
 import { RouteComponent } from '../../src/types'
 import { createApp, ref } from 'vue'
 
@@ -44,7 +44,7 @@ const Zap: RouteComponent = {
 }
 
 const router: any = createRouter({
-  history: createHistory('/' + __dirname),
+  history: createWebHistory('/' + __dirname),
   routes: [
     { path: '/', redirect: '/parent' },
     {

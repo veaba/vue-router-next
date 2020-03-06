@@ -1,5 +1,5 @@
 // todo: why the page don't work it?
-import { createRouter, createHistory, useRoute } from '../../src'
+import { createRouter, createWebHistory, useRoute } from '../../src'
 import { RouteComponent } from '../../src/types'
 import { createApp } from 'vue'
 
@@ -30,7 +30,7 @@ const Image: RouteComponent = { template: '<div>{{ route.params.imageId }}</div>
 
 
 const router: any = createRouter({
-  history: createHistory(__dirname),
+  history: createWebHistory(__dirname),
   routes: [
     { path: '/', component: Home },
     { path: '/about', component: About },

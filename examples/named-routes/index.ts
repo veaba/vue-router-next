@@ -1,4 +1,4 @@
-import { createRouter, createHistory, useRoute } from '../../src'
+import { createRouter, createWebHistory, useRoute } from '../../src'
 import { RouteComponent } from '../../src/types'
 import { createApp, ref } from 'vue'
 
@@ -7,7 +7,7 @@ const Foo: RouteComponent = { template: '<div>This is Foo</div>' }
 const Bar: RouteComponent = { template: '<div>This is Bar {{ route.params.id }}</div>' }
 
 const router: any = createRouter({
-  history: createHistory('/' + __dirname),
+  history: createWebHistory('/' + __dirname),
   routes: [
     { path: '/', name: 'home', component: Home },
     { path: '/foo', name: 'foo', component: Foo },

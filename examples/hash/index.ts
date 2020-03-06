@@ -1,4 +1,4 @@
-import { createRouter, createHashHistory, useRoute } from '../../src'
+import { createRouter, createWebHashHistory, useRoute } from '../../src'
 import { RouteComponent } from '../../src/types'
 import { createApp, defineComponent, computed } from 'vue'
 
@@ -32,7 +32,7 @@ const Document: RouteComponent = {
 }
 
 const router = createRouter({
-  history: createHashHistory('/' + __dirname),
+  history: createWebHashHistory('/' + __dirname),
   routes: [
     { path: '/', component: Home, name: 'home', meta: { h1: true } },
     { path: '/documents/:id', name: 'docs', component: Document },

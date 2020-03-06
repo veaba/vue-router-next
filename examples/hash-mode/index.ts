@@ -1,4 +1,4 @@
-import { createRouter, createHashHistory, useRoute } from '../../src'
+import { createRouter, createWebHashHistory, useRoute } from '../../src'
 import { RouteComponent } from '../../src/types'
 import { createApp, ref } from 'vue'
 
@@ -10,7 +10,7 @@ const Unicode: RouteComponent = { template: '<div>unicode:{{route.params.unicode
 
 console.info('__dirname', __dirname)
 const router: any = createRouter({
-  history: createHashHistory(__dirname),
+  history: createWebHashHistory(__dirname),
   routes: [
     { path: '/', component: Home, name: 'home' },
     { path: '/foo', component: Foo, name: 'foo' },
