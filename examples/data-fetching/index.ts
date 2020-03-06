@@ -1,74 +1,121 @@
 import { createRouter, createWebHistory, useRoute } from '../../src'
 import { RouteComponent } from '../../src/types'
-import { createApp, ref } from 'vue'
+import { createApp, inject, ref } from 'vue'
+import { getPost } from './api'
 
 const Home: RouteComponent = { template: '<div>home</div>' }
-const Foo: RouteComponent = { template: '<div>foo</div>' }
-const Bar: RouteComponent = { template: '<div>bar</div>' }
-const Unicode: RouteComponent = { template: '<div>unicode</div>' }
 
-
+const Post: RouteComponent = {
+  template: `
+			<div class="post">
+					<div class="loading" v-if="loading">Loading...</div>
+					<div v-if="error" class="error">
+							{{ error}}
+					</div>
+					<!--
+             @ todo The following comments cannot be included in the transition, otherwise a Vue warning will be raised
+             giving the post container a unique key triggers transitions
+             when the post id changes.
+           -->
+					<transition name="slide">
+							
+							<div v-if="post" class="content" :key="post.id">
+									<h2>{{ post.title }}</h2>
+									<p>{{ post.body }}</p>
+							</div>
+					
+					</transition>
+			</div>
+  `,
+  setup() {
+    const route: any = inject('route')
+    let post: any = ref(0) || {}
+    let error: any = ref(0)
+    let loading: any = ref(0)
+    const fetchData = () => {
+      post.value = {}
+      error.value = ''
+      loading.value = true
+      console.info(route.value.params.id)
+      getPost(route.value.params.id, (err: any, postData: any) => {
+        loading.value = false
+        if (err) {
+          error.value = err.toString()
+        } else {
+          post.value = postData
+        }
+      })
+    }
+    return {
+      route,
+      loading,
+      post,
+      error,
+      fetchData,
+    }
+  },
+  watch: {
+    'route': 'fetchData',
+  },
+  style: `
+    <style>
+    .loading {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+    }
+    .error {
+      color: red;
+    }
+    .content {
+      transition: all .35s ease;
+      position: absolute;
+    }
+    .slide-enter {
+      opacity: 0;
+      transform: translate(30px, 0);
+    }
+    .slide-leave-active {
+      opacity: 0;
+      transform: translate(-30px, 0);
+    }
+    </style>
+  `,
+}
 const router: any = createRouter({
   history: createWebHistory('/' + __dirname),
   routes: [
-    { path: '/', component: Home, name: 'home' },
-    { path: '/foo', component: Foo, name: 'foo' },
-    { path: '/bar', component: Bar, name: 'bar' },
-    { path: '/é', component: Unicode, name: 'euro' },
+    { path: '/', component: Home },
+    { path: '/post/:id', component: Post },
   ],
 })
-console.info('==>', '/' + __dirname)
+
 const app = createApp({
   template: `
-  <div id="app">
-      <h1>Basic</h1>
-      <ul>
-        <li><router-link to="/">/</router-link></li>
-        <li><router-link to="/foo">/foo</router-link></li>
-        <li><router-link to="/bar">/bar</router-link></li>
-        <router-link tag="li" to="/bar" :event="['mousedown', 'touchstart']">
-          <a>/bar</a>
-        </router-link>
-        <li><router-link to="/é">/é</router-link></li>
-        <li><router-link to="/é?t=%25ñ">/é?t=%ñ</router-link></li>
-        <li><router-link to="/é#%25ñ">/é#%25ñ</router-link></li>
-        <router-link to="/foo" v-slot="props">
-          <li :class="[props.isActive && 'active', props.isExactActive && 'exact-active']">
-            <a :href="props.href" @click="props.navigate">{{ props.route.path }} (with v-slot).</a>
-          </li>
-        </router-link>
-        <li><router-link to="/foo" replace>/foo (replace)</router-link></li>
-      </ul>
-      <button id="navigate-btn" @click="navigateAndIncrement">On Success</button>
-      <pre>
-        {{route}}
-      </pre>
-      <pre id="counter">callback not work ->{{ n }}</pre>
-      <pre id="query-t">{{ route.query.t }}</pre>
-      <pre id="hash">{{ route.hash }}</pre>
-      <router-view class="view"></router-view>
-    </div>
+			<div>
+					<h1>Data Fetching</h1>
+					<ul>
+							<li>
+									<router-link to="/">/</router-link>
+							</li>
+							<li>
+									<router-link to="/post/1">/post/1</router-link>
+							</li>
+							<li>
+									<router-link to="/post/2">/post/2</router-link>
+							</li>
+							<li>
+									<router-link to="/post/3">/post/3</router-link>
+							</li>
+					</ul>
+					<router-view class="view"></router-view>
+			</div>
   `,
   setup() {
     const route: any = useRoute()
-    const n = ref(0)
-    const navigateAndIncrement = () => {
-      // callback don't work
-      const increment = () => {
-        console.info(111)
-        n.value++
-      }
-      if (route.value.path === '/') {
-        router.push('/foo', increment)
-      } else {
-        router.push('/', increment)
-      }
-    }
 
     return {
-      n,
       route,
-      navigateAndIncrement,
     }
   },
 })

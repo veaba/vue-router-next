@@ -77,7 +77,7 @@ export const Link = defineComponent({
 
   setup(props, { slots, attrs }) {
     const link = reactive(useLink(props))
-
+    const slot:any=slots
     const elClass = computed(() => ({
       'router-link-active': link.isActive,
       'router-link-exact-active': link.isExactActive,
@@ -92,7 +92,7 @@ export const Link = defineComponent({
           href: link.href,
           ...attrs,
         },
-        slots.default(link)
+        slot.default(link)
       )
     }
   },

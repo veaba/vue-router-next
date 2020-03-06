@@ -16,6 +16,8 @@ const doneArray = [
   'basic',
   'encoding',
   'named-views',
+  'route-alias',
+  'data-fetching'
 ]
 // not supported yet
 const noYetArray = [
@@ -23,8 +25,11 @@ const noYetArray = [
   'nested-routes',
   'named-routes',
   'route-matching',
-  'active-links',// why not work it ?
+  'active-links',
   'redirect',// has error,like will get /redirect/foo,but get  /redirectfoo
+  'route-props',//type not supported props attrs yet
+  'route-params',// source code throw error Error: Missing required param "id"
+  'transitions',// not supported yet
 ]
 examples.sort()
 
