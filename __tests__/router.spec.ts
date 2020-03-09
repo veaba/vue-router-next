@@ -10,7 +10,9 @@ import {
 import { RouterHistory } from '../src/history/common'
 
 const routes: RouteRecord[] = [
-  { path: '/', component: components.Home, name: 'home' },
+  {
+    path: '/', component: components.Home, name: 'home',
+  },
   { path: '/home', redirect: '/' },
   {
     path: '/home-before',
@@ -34,6 +36,23 @@ const routes: RouteRecord[] = [
       hash: to.hash + '-2',
     }),
   },
+  {
+    path: '/relative',
+    component: components.Foo,
+    children: [
+      {
+        path: 'relative-redirect-a', redirect: 'foo',
+      },
+      {
+        path: 'relative-redirect-b', redirect: 'foo',
+      },
+    ],
+  },
+  {
+    path: '/absolute-a', redirect: '/bar',
+  },
+  { path: '/absolute-b', redirect: 'bar' },
+
 ]
 
 async function newRouter({ history }: { history?: RouterHistory } = {}) {
@@ -66,7 +85,7 @@ describe('Router', () => {
         path: '/foo',
         query: {},
         hash: '',
-      })
+      }),
     )
   })
 
@@ -92,7 +111,7 @@ describe('Router', () => {
         path: '/foo',
         query: {},
         hash: '',
-      })
+      }),
     )
   })
 
@@ -107,13 +126,13 @@ describe('Router', () => {
         path: '/foo',
         query: {},
         hash: '',
-      })
+      }),
     )
   })
 
   describe('navigation', () => {
     async function checkNavigationCancelledOnPush(
-      target?: RouteLocation | false | ((vm: any) => void)
+      target?: RouteLocation | false | ((vm: any) => void),
     ) {
       const [p1, r1] = fakePromise()
       const [p2, r2] = fakePromise()
@@ -160,7 +179,7 @@ describe('Router', () => {
     })
 
     async function checkNavigationCancelledOnPopstate(
-      target?: RouteLocation | false | ((vm: any) => void)
+      target?: RouteLocation | false | ((vm: any) => void),
     ) {
       const [p1, r1] = fakePromise()
       const [p2, r2] = fakePromise()
@@ -239,6 +258,50 @@ describe('Router', () => {
         redirectedFrom: { path: '/home-before' },
       })
     })
+
+    it('adds a relative redirect a to a sibling route', async () => {
+      const { router } = await newRouter({ history: createMemoryHistory() })
+      await router.push('/relative/relative-redirect-a')
+      expect(router.currentRoute.value).toMatchObject({
+        path: '/foo',
+        redirectedFrom: {
+          fullPath: '/relative/relative-redirect-a',
+        },
+      })
+    })
+    it('adds a relative redirect b to a sibling route ', async () => {
+      const { router } = await newRouter({ history: createMemoryHistory() })
+      await router.push('/relative/relative-redirect-b')
+      expect(router.currentRoute.value).toMatchObject({
+        path: '/foo',
+        redirectedFrom: {
+          fullPath: '/relative/relative-redirect-b',
+        },
+      })
+    })
+
+    it('adds a absolute redirect to route /absolute-a -> /bar', async () => {
+      const { router } = await newRouter({ history: createMemoryHistory() })
+      await router.push('/absolute-a')
+      expect(router.currentRoute.value).toMatchObject({
+        path: '/bar',
+        redirectedFrom: {
+          fullPath: '/absolute-a',
+        },
+      })
+    })
+    it('adds a absolute redirect to route /absolute-b -> /absolute-b/bar', async () => {
+      const { router } = await newRouter({ history: createMemoryHistory() })
+      await router.push('/absolute-b')
+      expect(router.currentRoute.value).toMatchObject({
+        path: '/bar',
+        redirectedFrom: {
+          fullPath: '/absolute-b',
+        },
+      })
+    })
+
+
   })
 
   describe('matcher', () => {
@@ -385,7 +448,8 @@ describe('Router', () => {
         },
       })
 
-      router.push('/dynamic/child').catch(() => {})
+      router.push('/dynamic/child').catch(() => {
+      })
       await tick()
       expect(router.currentRoute.value).toMatchObject({
         name: 'dynamic child',
