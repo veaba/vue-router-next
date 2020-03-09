@@ -11,7 +11,9 @@ import { RouterHistory } from '../src/history/common'
 
 const routes: RouteRecord[] = [
   {
-    path: '/', component: components.Home, name: 'home',
+    path: '/',
+    component: components.Home,
+    name: 'home',
   },
   { path: '/home', redirect: '/' },
   {
@@ -41,18 +43,20 @@ const routes: RouteRecord[] = [
     component: components.Foo,
     children: [
       {
-        path: 'relative-redirect-a', redirect: 'foo',
+        path: 'relative-redirect-a',
+        redirect: 'foo',
       },
       {
-        path: 'relative-redirect-b', redirect: 'foo',
+        path: 'relative-redirect-b',
+        redirect: 'foo',
       },
     ],
   },
   {
-    path: '/absolute-a', redirect: '/bar',
+    path: '/absolute-a',
+    redirect: '/bar',
   },
   { path: '/absolute-b', redirect: 'bar' },
-
 ]
 
 async function newRouter({ history }: { history?: RouterHistory } = {}) {
@@ -85,7 +89,7 @@ describe('Router', () => {
         path: '/foo',
         query: {},
         hash: '',
-      }),
+      })
     )
   })
 
@@ -111,7 +115,7 @@ describe('Router', () => {
         path: '/foo',
         query: {},
         hash: '',
-      }),
+      })
     )
   })
 
@@ -126,13 +130,13 @@ describe('Router', () => {
         path: '/foo',
         query: {},
         hash: '',
-      }),
+      })
     )
   })
 
   describe('navigation', () => {
     async function checkNavigationCancelledOnPush(
-      target?: RouteLocation | false | ((vm: any) => void),
+      target?: RouteLocation | false | ((vm: any) => void)
     ) {
       const [p1, r1] = fakePromise()
       const [p2, r2] = fakePromise()
@@ -179,7 +183,7 @@ describe('Router', () => {
     })
 
     async function checkNavigationCancelledOnPopstate(
-      target?: RouteLocation | false | ((vm: any) => void),
+      target?: RouteLocation | false | ((vm: any) => void)
     ) {
       const [p1, r1] = fakePromise()
       const [p2, r2] = fakePromise()
@@ -300,8 +304,6 @@ describe('Router', () => {
         },
       })
     })
-
-
   })
 
   describe('matcher', () => {
@@ -448,8 +450,7 @@ describe('Router', () => {
         },
       })
 
-      router.push('/dynamic/child').catch(() => {
-      })
+      router.push('/dynamic/child').catch(() => {})
       await tick()
       expect(router.currentRoute.value).toMatchObject({
         name: 'dynamic child',
