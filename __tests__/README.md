@@ -8,222 +8,51 @@
 - Record: bug item
 - Record: feature item
 
-## guards
-- component-beforeRouteEnter.spec
-- component-beforeRouteLeave.spec
-- component-beforeRouteUpdate.spec
-- [x] global-after.spec
-  - [x] route.afterEach
-    - [x] push
-      - [x] calls afterEach guards on push
-      - [x] can be removed
-      - [x] calls afterEach guards on push
-      - [x] does not call afterEach iif navigation is cancelled
-    - [x] replace
-      - [x] calls afterEach guards on push
-      - [x] can be removed
-      - [x] calls afterEach guards on push
-      - [x] does not call afterEach if navigation is cancelled
-- [x] global-beforeEach.spec
-  - [x] push
-    - [x] calls beforeEach guards on  navigation
-    - [x] can be removed
-    - [x] does not call beforeEach guard if we were already on the page
-    - [x] calls beforeEach guards on navigation between children routes
-    - [x] can redirect to a different location
-    - [x] can redirect multiple times with string redirect
-    - [x] can redirect multiple times with path object
-    - [x] can redirect multiple times with named route
-    - [x] is called when changing params
-    - [x] is not called with same params
-    - [x] waits before navigating
-    - [x] waits in the right order
-    - [x] adds meta information
-  - [x] replace
-    - [x] calls beforeEach guards on  navigation
-    - [x] can be removed
-    - [x] does not call beforeEach guard if we were already on the page
-    - [x] calls beforeEach guards on navigation between children routes
-    - [x] can redirect to a different location
-    - [x] can redirect multiple times with string redirect
-    - [x] can redirect multiple times with path object
-    - [x] can redirect multiple times with named route
-    - [x] is called when changing params
-    - [x] is not called with same params
-    - [x] waits before navigating
-    - [x] waits in the right order
-    - [x] adds meta information
-- route-beforeEnter.spec
-  - [x] beforeEnter
-    - [x] push
-      - [x] calls beforeEnter guards on navigation
-      - [x] supports an array of beforeEnter
-      - [x] call beforeEnter in nested views
-      - [x] calls beforeEnter different records, same component
-      - [x] does not call beforeEnter guard if we where already on the page
-      - waits before navigating in an array of beforeEnter
-    - [x] replace
-      - [x] calls beforeEnter guards on navigation
-      - [x] supports an array of beforeEnter
-      - [x] call beforeEnter in nested views
-      - [x] calls beforeEnter different records, same component
-      - [x] does not call beforeEnter guard if we where already on the page
-      - waits before navigating in an array of beforeEnter
+## Dynamic matching
 
-## history
-- html5.spec
-- memory.spec
-## matcher
-- addingRemoving.spec
-- path-parser.spec
-- path-ranking.spec
-- records.spec
-- resolve.spec
-## main
-- [x] encoding.spec
-  - [x] Encoding
-    - [x] params
-      - [x] does not encode safe chars
-      - [x] encodes a specific charset
-      - [x] encodes non-ascii
-      - [x] encodes non-printable ascii
-      - [x] does not encode a safe set
-    - [x] query params
-        - [x] does not encode a safe set
-        - [x] does not encode safe chars
-        - [x] encodes non-ascii
-        - [x] encodes non-printable ascii
-        - [x] encodes a specific charset
-    - [x] hash
-        - [x] does not encode a safe set
-        - [x] does not encode safe chars
-        - [x] encodes non-ascii
-        - [x] encodes non-printable ascii
-        - [x] encodes a specific charset
-- [x] error.spec
-  - [x] triggers onError when navigation is aborted
-  - [x] triggers erros caused by new navigations of a next(redirect) trigered by history
-  > typo: triggers error caused by new navigations of a next(redirect) triggered by history
-                                                                                                                                                            >
-                                                                                                                                                            >
-- [x] extractComponentsGuards.spec
-  - [x] extractComponentsGuards
-    - [x] extracts guards from one single component
-    - [x] handles mixed things
-    - [x] extracts guards from multiple components (named views)
-    - [x] handles no guards
-    
-- mount.spec
+## Nested routes
 
-- [x] parseQuery.spec
-  - [x] parseQuery
-    - [x] works with leading ?
-    - [x] works without leading ?
-    - [x] works with an empty string
-    - [x] decodes values in query
-    - [x] parses empty string values
-    - [x] decodes empty values as null
-    - [x] parses empty values as null in arrays
-    - [x] decodes array values in query
-    - [x] keep invalid values as is
-- [x] router.spec
-  - [x] Router
-    - [x] can be instantiated
-    - [x] calls history.push with router.push
-    - [x] can do initial navigation to /
-    - [x] calls history.replace with router.replace  
-    - [x] can pass replace option to push  
-    - [x] navigation
-      - [x] cancels navigation abort if a newer one is finished on push
-      - [x] cancels pending in-guard navigations if a newer one is finished on push
-      - [x] cancels pending navigations if a newer one is finished on push
-      - [x] cancels pending navigations if a newer one is finished on user navigation (from history)
-      - [x] cancels pending in-guard navigations if a newer one is finished on user navigation (from history)
-      - [x] cancels navigation abort if a newer one is finished on user navigation (from history)
-    - [x] redirectedFrom
-      - [x] adds a redirectedFrom property with a redirect in record   
-      - [x] adds a redirectedFrom property with beforeEnter
-    - matcher
-      - handles one redirect from route record
-      - drops query and params on redirect if not provided
-      - allows object in redirect
-      - can pass on query and hash when redirecting
-    - [x] allows base option in abstract history  
-    - [x] allows base option with html5 history  
-    - [x] Dynamic Routing
-      - [x] resolves new added routes
-      - [x] can redirect to children in the middle of navigation
-      - [x] can reroute to a replaced route with the same component
-      - [x] can reroute to child
-      - [x] can reroute when adding a new route
-      - [x] stops resolving removed routes
-      - [x] can reroute when removing route
-      - [x] can reroute when removing route through returned function
-    
-- :heavy_multiplication_x: RouterLink.spec
-  - `v-slot`
-    - `provides information on v-slot `
-  - `calls ensureLocation`
-  - `can be active`
-  - `can be active as an alias`
-  - `can be exact-active`
-  - `can be exact-active as an alias`
-  - `can change the value`
-  - `displays a link with a string prop`
-  - `displays a link with an object with path prop`
-  - `is active when a child is active`
-  - `is not active if the parent is active`
-  - `is not active with more repeated params`
-  - `is not active with partial repeated params`
-  - `only the children is exact-active'`
-- :heavy_multiplication_x:  RouterView.spec
-  - RouterView
-    - displays current route component
-    - displays named views
-    - displays named views
-    - displays nested views
-    - [x] displays nothing when route is unmatched
-    - renders when the location changes
-- [x] stringifyQuery.spec
-  - [x] stringifyQuery
-    - [x] stringifies multiple values
-    - [x] stringifies null values
-    - [x] stringifies null values in arrays
-    - [x] stringifies numbers
-    - [x] ignores undefined values
-    - [x] stringifies arrays 
-    - [x] encodes values
-    - [x] encodes values in arrays 
-- [x] url.spec
-  - [x] parseURL
-    - [x] works with no query no hash
-    - [x] extracts the query
-    - [x] extracts multiple query paramenters as an array 
-    - [x] extracts the hash 
-    - [x] extracts query and hash
-    - [x] calls parseQuery
-  - [x] stringifyURL
-    - [x] stringifies a hash
-    - [x] stringifies a path
-    - [x] stringifies a query with arrays
-    - [x] stringifies a query
-    - [x] stringifies a hash
-    - [x] stringifies a query and a hash
-    - [x] calls stringifyQuery
-  - [x] normalizeLocation
-    - [x] works with objects
-    - [x] works with string
-- url-encoding.spec
-  - [x] URL Encoding'
-    - [x] calls encodeParam with params object
-    - [x] calls encodeParam with relative location
-    - [x] calls encodeParam with params object with arrays
-    - [x] calls decode with a path
-    - [x] calls decode with a path with repeatable params
-    - [x] keeps decoded values in params
-    - [x] calls encodeQueryProperty with query
-    - [x] calls decode with query
-    - [x] calls encodeQueryProperty with arrays in query
-    - [x] keeps decoded values in query
+## Navigation
 
-- utils
+## Named routes
+
+## Named views
+
+## Redirect
+
+### Relative routes
+- bug: see [` __test__/router.spec.ts` ](https://github.com/veaba/vue-router-next/blob/test/__test__/router.spec.ts#L238-300)
+```text
+// createWebHistory('/redirect')
+// routes
+{
+ path:'/',
+ children:[
+  { path: 'relative-redirect-a', redirect: 'foo' },  // no match, if vue-route,is match success
+  { path: 'relative-redirect-b', redirect: '/foo' }, // match success
+  ]
+}
+// link
+- to:"/redirect/relative-redirect-a" 
+- to:"/redirect/relative-redirect-b" 
+
+```
+
+### Absolute routes
+### Redirect alias
+
+## Passing props
+
+## History mode
+
+## Navigation-guards
+ 
+## Meta
+
+## Transitions
+
+## Data fetching
+
+## Scroll behavior
+
+## ParseQuery / stringifyQuery

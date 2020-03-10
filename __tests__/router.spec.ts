@@ -14,6 +14,10 @@ const routes: RouteRecord[] = [
     path: '/',
     component: components.Home,
     name: 'home',
+    children: [
+      { path: 'relative-a', redirect: 'foo' },
+      { path: 'relative-b', redirect: '/foo' },
+    ],
   },
   { path: '/home', redirect: '/' },
   {
@@ -38,25 +42,21 @@ const routes: RouteRecord[] = [
       hash: to.hash + '-2',
     }),
   },
-  {
-    path: '/relative',
-    component: components.Foo,
-    children: [
-      {
-        path: 'relative-redirect-a',
-        redirect: 'foo',
-      },
-      {
-        path: 'relative-redirect-b',
-        redirect: 'foo',
-      },
-    ],
-  },
-  {
-    path: '/absolute-a',
-    redirect: '/bar',
-  },
+  { path: '/absolute-a', redirect: '/bar' },
   { path: '/absolute-b', redirect: 'bar' },
+  // todo
+  // {
+  //   path: '/redirect',
+  //   component: components.Foo,
+  //   children: [
+  //     {
+  //       path: 'relative-a', redirect: 'foo',
+  //     },
+  //     {
+  //       path: 'relative-b', redirect: '/foo',
+  //     },
+  //   ],
+  // },
 ]
 
 async function newRouter({ history }: { history?: RouterHistory } = {}) {
@@ -262,47 +262,43 @@ describe('Router', () => {
         redirectedFrom: { path: '/home-before' },
       })
     })
+  })
 
-    it('adds a relative redirect a to a sibling route', async () => {
-      const { router } = await newRouter({ history: createMemoryHistory() })
-      await router.push('/relative/relative-redirect-a')
-      expect(router.currentRoute.value).toMatchObject({
-        path: '/foo',
-        redirectedFrom: {
-          fullPath: '/relative/relative-redirect-a',
-        },
-      })
-    })
-    it('adds a relative redirect b to a sibling route ', async () => {
-      const { router } = await newRouter({ history: createMemoryHistory() })
-      await router.push('/relative/relative-redirect-b')
-      expect(router.currentRoute.value).toMatchObject({
-        path: '/foo',
-        redirectedFrom: {
-          fullPath: '/relative/relative-redirect-b',
-        },
-      })
+  // todo
+  describe('redirect', function() {
+    it('redirect foo : /redirect/relative-a -> /relative/foo', async () => {
+      const history = createWebHistory('/redirect')
+      const router = createRouter({ history, routes })
+      await router.push('/relative-a')
+      expect('/redirect' + router.currentRoute.value.path).toEqual(
+        '/redirect/foo'
+      )
     })
 
-    it('adds a absolute redirect to route /absolute-a -> /bar', async () => {
-      const { router } = await newRouter({ history: createMemoryHistory() })
-      await router.push('/absolute-a')
-      expect(router.currentRoute.value).toMatchObject({
-        path: '/bar',
-        redirectedFrom: {
-          fullPath: '/absolute-a',
-        },
-      })
+    it('redirect /foo : /redirect/relative-b -> /relative/foo', async () => {
+      const history = createWebHistory('/redirect')
+      const router = createRouter({ history, routes })
+      await router.push('/relative-b')
+      expect('/redirect' + router.currentRoute.value.path).toEqual(
+        '/redirect/foo'
+      )
     })
-    it('adds a absolute redirect to route /absolute-b -> /absolute-b/bar', async () => {
-      const { router } = await newRouter({ history: createMemoryHistory() })
-      await router.push('/absolute-b')
-      expect(router.currentRoute.value).toMatchObject({
-        path: '/bar',
-        redirectedFrom: {
-          fullPath: '/absolute-b',
-        },
-      })
+
+    it('redirect foo : /relative-a -> /relative/foo', async () => {
+      const history = createWebHistory('/redirect')
+      const router = createRouter({ history, routes })
+      await router.push('/relative-a')
+      expect('/redirect' + router.currentRoute.value.path).toEqual(
+        '/redirect/foo'
+      )
+    })
+    it('redirect /foo : /relative-b -> /relative/foo', async () => {
+      const history = createWebHistory('/redirect')
+      const router = createRouter({ history, routes })
+      await router.push('/relative-b')
+      expect('/redirect' + router.currentRoute.value.path).toEqual(
+        '/redirect/foo'
+      )
     })
   })
 
