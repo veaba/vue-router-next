@@ -1,5 +1,5 @@
 <template>
-  <div>User: {{ route.params.id }}</div>
+  <div>User: {{ id }}</div>
 </template>
 
 <script>
@@ -7,10 +7,16 @@ import { defineComponent, inject } from 'vue'
 
 export default defineComponent({
   name: 'User',
-  setup() {
-    const route = inject('route')
-    console.log('calling setup in User')
-    return { route }
+  props: {
+    id: String,
+  },
+
+  beforeRouteUpdate(to, from, next) {
+    // TODO: these do not work yet
+    console.log('this', this)
+    next(vm => {
+      console.log('in next', vm)
+    })
   },
 })
 </script>
