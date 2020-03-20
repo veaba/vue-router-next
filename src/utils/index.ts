@@ -1,38 +1,61 @@
-import { RouteLocationNormalized, RouteParams, Immutable } from '../types'
+import {
+  RouteLocationNormalized,
+  RouteParams,
+  Immutable,
+  RouteComponent,
+  RouteLocationNormalizedResolved,
+} from '../types'
 import { guardToPromiseFn } from './guardToPromiseFn'
 import { RouteRecordNormalized } from '../matcher/types'
 import { LocationQueryValue } from './query'
 
 export * from './guardToPromiseFn'
 
+const hasSymbol =
+  typeof Symbol === 'function' && typeof Symbol.toStringTag === 'symbol'
+
+function isESModule(obj: any): obj is { default: RouteComponent } {
+  return obj.__esModule || (hasSymbol && obj[Symbol.toStringTag] === 'Module')
+}
+
 type GuardType = 'beforeRouteEnter' | 'beforeRouteUpdate' | 'beforeRouteLeave'
-export async function extractComponentsGuards(
+
+export function extractComponentsGuards(
   matched: RouteRecordNormalized[],
   guardType: GuardType,
   to: RouteLocationNormalized,
-  from: RouteLocationNormalized
+  from: RouteLocationNormalizedResolved
 ) {
   const guards: Array<() => Promise<void>> = []
-  await Promise.all(
-    matched.map(async record => {
-      // TODO: cache async routes per record
-      for (const name in record.components) {
-        const component = record.components[name]
-        // TODO: handle Vue.extend views
-        // if ('options' in component) throw new Error('TODO')
-        const resolvedComponent = component
-        // TODO: handle async component
-        // const resolvedComponent = await (typeof component === 'function'
-        //   ? component()
-        //   : component)
 
-        const guard = resolvedComponent[guardType]
-        if (guard) {
-          guards.push(guardToPromiseFn(guard, to, from))
-        }
+  for (const record of matched) {
+    for (const name in record.components) {
+      const rawComponent = record.components[name]
+      if (typeof rawComponent === 'function') {
+        // start requesting the chunk already
+        const componentPromise = rawComponent().catch(() => null)
+        guards.push(async () => {
+          const resolved = await componentPromise
+          if (!resolved) throw new Error('TODO: error while fetching')
+          const resolvedComponent = isESModule(resolved)
+            ? resolved.default
+            : resolved
+          // replace the function with the resolved component
+          record.components[name] = resolvedComponent
+          const guard = resolvedComponent[guardType]
+          return (
+            // @ts-ignore: the guard matcheds the instance type
+            guard && guardToPromiseFn(guard, to, from, record.instances[name])()
+          )
+        })
+      } else {
+        const guard = rawComponent[guardType]
+        guard &&
+          // @ts-ignore: the guard matcheds the instance type
+          guards.push(guardToPromiseFn(guard, to, from, record.instances[name]))
       }
-    })
-  )
+    }
+  }
 
   return guards
 }
@@ -55,8 +78,10 @@ export function isSameRouteRecord(
   a: Immutable<RouteRecordNormalized>,
   b: Immutable<RouteRecordNormalized>
 ): boolean {
-  // TODO: handle aliases
-  return a === b
+  // since the original record has an undefined value for aliasOf
+  // but all aliases point to the original record, this will always compare
+  // the original record
+  return (a.aliasOf || a) === (b.aliasOf || b)
 }
 
 export function isSameLocationObject(

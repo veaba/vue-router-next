@@ -10,6 +10,7 @@ import {
   TODO,
   Immutable,
   MatcherLocationNormalized,
+  RouteLocationNormalizedResolved,
 } from './types'
 import { RouterHistory, parseURL, stringifyURL } from './history/common'
 import {
@@ -18,21 +19,21 @@ import {
   scrollToPosition,
 } from './utils/scroll'
 import { createRouterMatcher } from './matcher'
-import {
-  NavigationCancelled,
-  NavigationGuardRedirect,
-  NavigationAborted,
-} from './errors'
+import { createRouterError, ErrorTypes, NavigationError } from './errors'
 import {
   extractComponentsGuards,
   guardToPromiseFn,
-  isSameLocationObject,
   applyToParams,
   isSameRouteRecord,
+  isSameLocationObject,
 } from './utils'
 import { useCallbacks } from './utils/callbacks'
 import { encodeParam, decode } from './utils/encoding'
-import { normalizeQuery, parseQuery, stringifyQuery } from './utils/query'
+import {
+  normalizeQuery,
+  parseQuery as originalParseQuery,
+  stringifyQuery as originalStringifyQuery,
+} from './utils/query'
 import { ref, Ref, markNonReactive, nextTick, App, warn } from 'vue'
 import { RouteRecordNormalized } from './matcher/types'
 import { Link } from './components/Link'
@@ -45,7 +46,7 @@ type OnReadyCallback = [() => void, (reason?: any) => void]
 interface ScrollBehavior {
   (
     to: RouteLocationNormalized,
-    from: RouteLocationNormalized,
+    from: RouteLocationNormalizedResolved,
     savedPosition: ScrollToPosition | null
   ): ScrollPosition | Promise<ScrollPosition>
 }
@@ -54,12 +55,14 @@ export interface RouterOptions {
   history: RouterHistory
   routes: RouteRecord[]
   scrollBehavior?: ScrollBehavior
+  parseQuery?: typeof originalParseQuery
+  stringifyQuery?: typeof originalStringifyQuery
   // TODO: allow customizing encoding functions
 }
 
 export interface Router {
   history: RouterHistory
-  currentRoute: Ref<Immutable<RouteLocationNormalized>>
+  currentRoute: Ref<Immutable<RouteLocationNormalizedResolved>>
 
   addRoute(parentName: string, route: RouteRecord): () => void
   addRoute(route: RouteRecord): () => void
@@ -68,10 +71,10 @@ export interface Router {
 
   resolve(to: RouteLocation): RouteLocationNormalized
   createHref(to: RouteLocationNormalized): string
-  push(to: RouteLocation): Promise<RouteLocationNormalized>
-  replace(to: RouteLocation): Promise<RouteLocationNormalized>
+  push(to: RouteLocation): Promise<RouteLocationNormalizedResolved>
+  replace(to: RouteLocation): Promise<RouteLocationNormalizedResolved>
 
-  beforeEach(guard: NavigationGuard): ListenerRemover
+  beforeEach(guard: NavigationGuard<undefined>): ListenerRemover
   afterEach(guard: PostNavigationGuard): ListenerRemover
 
   onError(handler: ErrorHandler): ListenerRemover
@@ -86,15 +89,16 @@ export function createRouter({
   history,
   routes,
   scrollBehavior,
+  parseQuery = originalParseQuery,
+  stringifyQuery = originalStringifyQuery,
 }: RouterOptions): Router {
-  const matcher: ReturnType<typeof createRouterMatcher> = createRouterMatcher(
-    routes,
-    {}
-  )
+  const matcher = createRouterMatcher(routes, {})
 
-  const beforeGuards = useCallbacks<NavigationGuard>()
+  const beforeGuards = useCallbacks<NavigationGuard<undefined>>()
   const afterGuards = useCallbacks<PostNavigationGuard>()
-  const currentRoute = ref<RouteLocationNormalized>(START_LOCATION_NORMALIZED)
+  const currentRoute = ref<RouteLocationNormalizedResolved>(
+    START_LOCATION_NORMALIZED
+  )
   let pendingLocation: Immutable<RouteLocationNormalized> = START_LOCATION_NORMALIZED
 
   if (isClient && 'scrollRestoration' in window.history) {
@@ -137,7 +141,7 @@ export function createRouter({
 
   function resolve(
     location: RouteLocation,
-    currentLocation?: RouteLocationNormalized
+    currentLocation?: RouteLocationNormalizedResolved
   ): RouteLocationNormalized {
     // const objectLocation = routerLocationAsObject(location)
     currentLocation = currentLocation || currentRoute.value
@@ -184,21 +188,25 @@ export function createRouter({
     }
   }
 
-  function push(to: RouteLocation): Promise<RouteLocationNormalized> {
+  function push(
+    to: RouteLocation | RouteLocationNormalized
+  ): Promise<RouteLocationNormalizedResolved> {
     return pushWithRedirect(to, undefined)
   }
 
   async function pushWithRedirect(
-    to: RouteLocation,
+    to: RouteLocation | RouteLocationNormalized,
     redirectedFrom: RouteLocationNormalized | undefined
-  ): Promise<RouteLocationNormalized> {
-    const toLocation: RouteLocationNormalized = (pendingLocation = resolve(to))
-    const from: RouteLocationNormalized = currentRoute.value
+  ): Promise<RouteLocationNormalizedResolved> {
+    const toLocation: RouteLocationNormalized = (pendingLocation =
+      // Some functions will pass a normalized location and we don't need to resolve it again
+      typeof to === 'object' && 'matched' in to ? to : resolve(to))
+    const from: RouteLocationNormalizedResolved = currentRoute.value
     // @ts-ignore: no need to check the string as force do not exist on a string
     const force: boolean | undefined = to.force
 
     // TODO: should we throw an error as the navigation was aborted
-    if (!force && isSameLocation(from, toLocation)) return from
+    if (!force && isSameRouteLocation(from, toLocation)) return from
 
     toLocation.redirectedFrom = redirectedFrom
 
@@ -206,41 +214,51 @@ export function createRouter({
     try {
       await navigate(toLocation, from)
     } catch (error) {
-      if (NavigationGuardRedirect.is(error)) {
-        // push was called while waiting in guards
-        if (pendingLocation !== toLocation) {
-          triggerError(new NavigationCancelled(toLocation, from))
-        }
+      // push was called while waiting in guards
+      // TODO: write tests
+      if (pendingLocation !== toLocation) {
+        triggerError(
+          createRouterError<NavigationError>(ErrorTypes.NAVIGATION_CANCELLED, {
+            from,
+            to: toLocation,
+          })
+        )
+      }
+
+      if (error.type === ErrorTypes.NAVIGATION_GUARD_REDIRECT) {
         // preserve the original redirectedFrom if any
         return pushWithRedirect(error.to, redirectedFrom || toLocation)
-      } else {
-        // TODO: write tests
-        if (pendingLocation !== toLocation) {
-          triggerError(new NavigationCancelled(toLocation, from))
-        }
       }
+
+      // unkwnown error
       triggerError(error)
     }
 
-    finalizeNavigation(toLocation, from, true, to.replace === true)
+    finalizeNavigation(
+      toLocation as RouteLocationNormalizedResolved,
+      from,
+      true,
+      // RouteLocationNormalized will give undefined
+      (to as RouteLocation).replace === true
+    )
 
     return currentRoute.value
   }
 
-  function replace(to: RouteLocation) {
+  function replace(to: RouteLocation | RouteLocationNormalized) {
     const location = typeof to === 'string' ? { path: to } : to
     return push({ ...location, replace: true })
   }
 
   async function navigate(
     to: RouteLocationNormalized,
-    from: RouteLocationNormalized
+    from: RouteLocationNormalizedResolved
   ): Promise<TODO> {
     let guards: Lazy<any>[]
 
     // all components here have been resolved once because we are leaving
     // TODO: refactor both together
-    guards = await extractComponentsGuards(
+    guards = extractComponentsGuards(
       from.matched.filter(record => to.matched.indexOf(record) < 0).reverse(),
       'beforeRouteLeave',
       to,
@@ -257,6 +275,9 @@ export function createRouter({
       for (const guard of record.leaveGuards) {
         guards.push(guardToPromiseFn(guard, to, from))
       }
+
+      // free the references
+      record.instances = {}
     }
 
     // run the queue of per route beforeRouteLeave guards
@@ -272,8 +293,8 @@ export function createRouter({
     await runGuardQueue(guards)
 
     // check in components beforeRouteUpdate
-    guards = await extractComponentsGuards(
-      to.matched.filter(record => from.matched.indexOf(record) > -1),
+    guards = extractComponentsGuards(
+      to.matched.filter(record => from.matched.indexOf(record as any) > -1),
       'beforeRouteUpdate',
       to,
       from
@@ -286,7 +307,7 @@ export function createRouter({
     guards = []
     for (const record of to.matched) {
       // do not trigger beforeEnter on reused views
-      if (record.beforeEnter && from.matched.indexOf(record) < 0) {
+      if (record.beforeEnter && from.matched.indexOf(record as any) < 0) {
         if (Array.isArray(record.beforeEnter)) {
           for (const beforeEnter of record.beforeEnter)
             guards.push(guardToPromiseFn(beforeEnter, to, from))
@@ -299,10 +320,12 @@ export function createRouter({
     // run the queue of per route beforeEnter guards
     await runGuardQueue(guards)
 
+    // TODO: at this point to.matched is normalized and does not contain any () => Promise<Component>
+
     // check in-component beforeRouteEnter
-    // TODO: is it okay to resolve all matched component or should we do it in order
-    guards = await extractComponentsGuards(
-      to.matched.filter(record => from.matched.indexOf(record) < 0),
+    guards = extractComponentsGuards(
+      // the type does'nt matter as we are comparing an object per reference
+      to.matched.filter(record => from.matched.indexOf(record as any) < 0),
       'beforeRouteEnter',
       to,
       from
@@ -318,14 +341,20 @@ export function createRouter({
    * - Calls the scrollBehavior
    */
   function finalizeNavigation(
-    toLocation: RouteLocationNormalized,
-    from: RouteLocationNormalized,
+    toLocation: RouteLocationNormalizedResolved,
+    from: RouteLocationNormalizedResolved,
     isPush: boolean,
     replace?: boolean
   ) {
     // a more recent navigation took place
     if (pendingLocation !== toLocation) {
-      return triggerError(new NavigationCancelled(toLocation, from), isPush)
+      return triggerError(
+        createRouterError<NavigationError>(ErrorTypes.NAVIGATION_CANCELLED, {
+          from,
+          to: toLocation,
+        }),
+        isPush
+      )
     }
 
     // remove registered guards from removed matched records
@@ -361,6 +390,7 @@ export function createRouter({
 
   // attach listener to history to trigger navigations
   history.listen(async (to, _from, info) => {
+    // TODO: try catch to correctly log the matcher error
     const toLocation = resolve(to.fullPath)
     // console.log({ to, matchedRoute })
 
@@ -369,21 +399,35 @@ export function createRouter({
 
     try {
       await navigate(toLocation, from)
-      finalizeNavigation(toLocation, from, false)
+      finalizeNavigation(
+        // after navigation, all matched components are resolved
+        toLocation as RouteLocationNormalizedResolved,
+        from,
+        false
+      )
     } catch (error) {
-      if (NavigationGuardRedirect.is(error)) {
+      if (error.type === ErrorTypes.NAVIGATION_GUARD_REDIRECT) {
         // TODO: refactor the duplication of new NavigationCancelled by
         // checking instanceof NavigationError (it's another TODO)
         // a more recent navigation took place
         if (pendingLocation !== toLocation) {
-          return triggerError(new NavigationCancelled(toLocation, from), false)
+          return triggerError(
+            createRouterError<NavigationError>(
+              ErrorTypes.NAVIGATION_CANCELLED,
+              {
+                from,
+                to: toLocation,
+              }
+            ),
+            false
+          )
         }
         triggerError(error, false)
 
         // the error is already handled by router.push
         // we just want to avoid logging the error
         pushWithRedirect(error.to, toLocation).catch(() => {})
-      } else if (NavigationAborted.is(error)) {
+      } else if (error.type === ErrorTypes.NAVIGATION_ABORTED) {
         console.log('Cancelled, going to', -info.distance)
         // TODO: test on different browsers ensure consistent behavior
         history.go(-info.distance, false)
@@ -443,8 +487,8 @@ export function createRouter({
   // Scroll behavior
 
   async function handleScroll(
-    to: RouteLocationNormalized,
-    from: RouteLocationNormalized,
+    to: RouteLocationNormalizedResolved,
+    from: RouteLocationNormalizedResolved,
     scrollPosition?: ScrollToPosition
   ) {
     if (!scrollBehavior) return
@@ -516,7 +560,7 @@ async function runGuardQueue(guards: Lazy<any>[]): Promise<void> {
 
 function extractChangingRecords(
   to: RouteLocationNormalized,
-  from: RouteLocationNormalized
+  from: RouteLocationNormalizedResolved
 ) {
   const leavingRecords: RouteRecordNormalized[] = []
   const updatingRecords: RouteRecordNormalized[] = []
@@ -529,22 +573,38 @@ function extractChangingRecords(
   }
 
   for (const record of to.matched) {
-    if (from.matched.indexOf(record) < 0) enteringRecords.push(record)
+    // the type doesn't matter because we are comparing per reference
+    if (from.matched.indexOf(record as any) < 0) enteringRecords.push(record)
   }
 
   return [leavingRecords, updatingRecords, enteringRecords]
 }
 
-function isSameLocation(
-  a: Immutable<RouteLocationNormalized>,
-  b: Immutable<RouteLocationNormalized>
+// function isSameLocation(
+//   a: Immutable<RouteLocationNormalized>,
+//   b: Immutable<RouteLocationNormalized>
+// ): boolean {
+//   return (
+//     a.name === b.name &&
+//     a.path === b.path &&
+//     a.hash === b.hash &&
+//     isSameLocationObject(a.query, b.query) &&
+//     a.matched.length === b.matched.length &&
+//     a.matched.every((record, i) => isSameRouteRecord(record, b.matched[i]))
+//   )
+// }
+
+function isSameRouteLocation(
+  a: RouteLocationNormalized,
+  b: RouteLocationNormalized
 ): boolean {
+  let aLastIndex = a.matched.length - 1
+  let bLastIndex = b.matched.length - 1
+
   return (
-    a.name === b.name &&
-    a.path === b.path &&
-    a.hash === b.hash &&
-    isSameLocationObject(a.query, b.query) &&
-    a.matched.length === b.matched.length &&
-    a.matched.every((record, i) => isSameRouteRecord(record, b.matched[i]))
+    aLastIndex > -1 &&
+    aLastIndex === bLastIndex &&
+    isSameRouteRecord(a.matched[aLastIndex], b.matched[bLastIndex]) &&
+    isSameLocationObject(a.params, b.params)
   )
 }
