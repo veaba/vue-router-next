@@ -98,7 +98,7 @@ beforeEach(() => {
   resetMocks()
 })
 
-describe.skip('beforeRouteLeave', () => {
+describe('beforeRouteLeave', () => {
   beforeAll(() => {
     createDom()
   })
@@ -167,26 +167,6 @@ describe.skip('beforeRouteLeave', () => {
         expect(nested.nestedNestedFoo).toHaveBeenCalledTimes(1)
       })
 
-      // TODO: implem async components
-      it.skip('works when a lazy loaded component', async () => {
-        const router = createRouter({
-          routes: [
-            ...routes,
-            {
-              path: '/lazy',
-              component: () => Promise.resolve({ ...Foo, beforeRouteLeave }),
-            },
-          ],
-        })
-        beforeRouteLeave.mockImplementationOnce((to, from, next) => {
-          next()
-        })
-        await router.push('/lazy')
-        expect(beforeRouteLeave).not.toHaveBeenCalled()
-        await router[navigationMethod]('/foo')
-        expect(beforeRouteLeave).toHaveBeenCalledTimes(1)
-      })
-
       it('can cancel navigation', async () => {
         const router = createRouter({ routes })
         beforeRouteLeave.mockImplementationOnce(async (to, from, next) => {
@@ -199,6 +179,11 @@ describe.skip('beforeRouteLeave', () => {
         await p.catch(err => {}) // catch the navigation abortion
         expect(currentRoute.fullPath).toBe('/guard')
       })
+
+      it.todo('invokes with the component context')
+      it.todo('invokes with the component context with named views')
+      it.todo('invokes with the component context with nested views')
+      it.todo('invokes with the component context with nested named views')
     })
   })
 })

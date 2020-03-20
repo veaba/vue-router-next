@@ -19,12 +19,19 @@ export const router = createRouter({
   history: routerHistory,
   routes: [
     { path: '/', component: Home },
-    { path: '/users/:id', name: 'user', component: User },
+    { path: '/users/:id', name: 'user', component: User, props: true },
     { path: '/documents/:id', name: 'docs', component: User },
     { path: encodeURI('/n/€'), name: 'euro', component },
     { path: '/n/:n', name: 'increment', component },
     { path: '/multiple/:a/:b', name: 'multiple', component },
     { path: '/long-:n', name: 'long', component: LongView },
+    {
+      path: '/lazy',
+      component: async () => {
+        await delay(500)
+        return component
+      },
+    },
     {
       path: '/with-guard/:n',
       name: 'guarded',
@@ -55,6 +62,7 @@ export const router = createRouter({
       children: [
         {
           path: 'nested',
+          alias: 'a',
           name: 'NestedNested',
           component: Nested,
           children: [
@@ -64,6 +72,12 @@ export const router = createRouter({
               component: Nested,
             },
           ],
+        },
+        {
+          path: 'other',
+          alias: 'otherAlias',
+          component: Nested,
+          name: 'NestedOther',
         },
       ],
     },

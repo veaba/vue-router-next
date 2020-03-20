@@ -3,28 +3,64 @@ import {
   RouteLocationNormalized,
   NavigationGuardCallback,
   RouteLocation,
+  RouteLocationNormalizedResolved,
+  NavigationGuardNextCallback,
 } from '../types'
 
 import { isRouteLocation } from '../types'
-import { NavigationGuardRedirect, NavigationAborted } from '../errors'
+import {
+  createRouterError,
+  ErrorTypes,
+  NavigationError,
+  NavigationRedirectError,
+} from '../errors'
+import { ComponentPublicInstance } from 'vue'
 
 export function guardToPromiseFn(
-  guard: NavigationGuard,
+  guard: NavigationGuard<undefined>,
   to: RouteLocationNormalized,
-  from: RouteLocationNormalized
+  from: RouteLocationNormalizedResolved,
+  instance?: undefined
+): () => Promise<void>
+export function guardToPromiseFn<
+  ThisType extends ComponentPublicInstance | undefined
+>(
+  guard: NavigationGuard<ThisType>,
+  to: RouteLocationNormalized,
+  from: RouteLocationNormalizedResolved,
+  instance: ThisType
 ): () => Promise<void> {
   return () =>
     new Promise((resolve, reject) => {
       const next: NavigationGuardCallback = (
-        valid?: boolean | RouteLocation
+        valid?: boolean | RouteLocation | NavigationGuardNextCallback
       ) => {
-        // TODO: handle callback
-        if (valid === false) reject(new NavigationAborted(to, from))
+        if (valid === false)
+          reject(
+            createRouterError<NavigationError>(ErrorTypes.NAVIGATION_ABORTED, {
+              from,
+              to,
+            })
+          )
         else if (isRouteLocation(valid)) {
-          reject(new NavigationGuardRedirect(to, valid))
-        } else resolve()
+          reject(
+            createRouterError<NavigationRedirectError>(
+              ErrorTypes.NAVIGATION_GUARD_REDIRECT,
+              {
+                from: to,
+                to: valid,
+              }
+            )
+          )
+        } else if (!valid || valid === true) {
+          resolve()
+        } else {
+          // TODO: call the in component enter callbacks. Maybe somewhere else
+          // record && record.enterCallbacks.push(valid)
+          resolve()
+        }
       }
 
-      guard(to, from, next)
+      guard.call(instance, to, from, next)
     })
 }
