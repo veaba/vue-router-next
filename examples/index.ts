@@ -38,7 +38,7 @@ examples = Array.from(new Set(examples))
 examples = examples.map(item => {
   return doneArray.includes(item) ? ('√ ' + item) : (noYetArray.includes(item) ? ('x ' + item) : item)
 })
-const template = {
-  data: { examples },
+const template: any = {
+  data: () => ({ examples })
 }
 createApp(template).mount('#app')
