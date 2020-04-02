@@ -1,7 +1,7 @@
 {
-  "include": ["../src/**/*.ts", "./*.ts", "*/*ts"],
+  "include": ["index.ts", "*/*ts"],
   "compilerOptions": {
-    "target": "esnext",
+    "target": "es5",
     "module": "commonjs",
     // "lib": ["es2017.object"] /* Specify library files to be included in the compilation. */,
     "declaration": true,

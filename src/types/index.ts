@@ -1,9 +1,7 @@
 import { LocationQuery, LocationQueryRaw } from '../utils/query'
 import { PathParserOptions } from '../matcher/path-parser-ranker'
-import { markNonReactive } from 'vue'
+import { markNonReactive, ComponentOptions, ComponentPublicInstance } from 'vue'
 import { RouteRecordNormalized } from '../matcher/types'
-
-// type Component = ComponentOptions<Vue> | typeof Vue | AsyncComponent
 
 export type Lazy<T> = () => Promise<T>
 export type Override<T, U> = Pick<T, Exclude<keyof T, keyof U>> & U
@@ -61,7 +59,24 @@ export type RouteLocation =
   | (RouteQueryAndHash & LocationAsName & RouteLocationOptions)
   | (RouteQueryAndHash & LocationAsRelative & RouteLocationOptions)
 
+export interface RouteLocationMatched extends RouteRecordNormalized {
+  components: Record<string, RouteComponent>
+}
+
 // A matched record cannot be a redirection and must contain
+
+// matched contains resolved components
+export interface RouteLocationNormalizedResolved {
+  path: string
+  fullPath: string
+  query: LocationQuery
+  hash: string
+  name: string | null | undefined
+  params: RouteParams
+  matched: RouteLocationMatched[] // non-enumerable
+  redirectedFrom: RouteLocationNormalized | undefined
+  meta: Record<string | number | symbol, any>
+}
 
 export interface RouteLocationNormalized {
   path: string
@@ -87,8 +102,9 @@ export interface RouteLocationNormalized {
 // }
 
 // TODO: type this for beforeRouteUpdate and beforeRouteLeave
+// TODO: support arrays
 export interface RouteComponentInterface {
-  beforeRouteEnter?: NavigationGuard<void>
+  beforeRouteEnter?: NavigationGuard<undefined>
   /**
    * Guard called when the router is navigating away from the current route
    * that is rendering this component.
@@ -96,7 +112,7 @@ export interface RouteComponentInterface {
    * @param from RouteLocation we are navigating from
    * @param next function to validate, cancel or modify (by redirectering) the navigation
    */
-  beforeRouteLeave?: NavigationGuard<void>
+  beforeRouteLeave?: NavigationGuard
   /**
    * Guard called whenever the route that renders this component has changed but
    * it is reused for the new route. This allows you to guard for changes in params,
@@ -105,21 +121,24 @@ export interface RouteComponentInterface {
    * @param from RouteLocation we are navigating from
    * @param next function to validate, cancel or modify (by redirectering) the navigation
    */
-  beforeRouteUpdate?: NavigationGuard<void>
+  beforeRouteUpdate?: NavigationGuard
 }
 
-// TODO: have a real type with augmented properties
-// add async component
-// export type RouteComponent = (Component | ReturnType<typeof defineComponent>) & RouteComponentInterface
-export type RouteComponent = TODO
+// TODO: allow defineComponent export type RouteComponent = (Component | ReturnType<typeof defineComponent>) &
+export type RouteComponent = ComponentOptions & RouteComponentInterface
+export type RawRouteComponent = RouteComponent | Lazy<RouteComponent>
 
 // TODO: could this be moved to matcher?
 export interface RouteRecordCommon {
   path: string
   alias?: string | string[]
   name?: string
+  props?:
+    | boolean
+    | Record<string, any>
+    | ((to: RouteLocationNormalized) => Record<string, any>)
   // TODO: beforeEnter has no effect with redirect, move and test
-  beforeEnter?: NavigationGuard | NavigationGuard[]
+  beforeEnter?: NavigationGuard<undefined> | NavigationGuard<undefined>[]
   meta?: Record<string | number | symbol, any>
   // TODO: only allow a subset?
   // TODO: RFC: remove this and only allow global options
@@ -137,12 +156,12 @@ export interface RouteRecordRedirect extends RouteRecordCommon {
 }
 
 export interface RouteRecordSingleView extends RouteRecordCommon {
-  component: RouteComponent
+  component: RawRouteComponent
   children?: RouteRecord[]
 }
 
 export interface RouteRecordMultipleViews extends RouteRecordCommon {
-  components: Record<string, RouteComponent>
+  components: Record<string, RawRouteComponent>
   children?: RouteRecord[]
 }
 
@@ -151,7 +170,7 @@ export type RouteRecord =
   | RouteRecordMultipleViews
   | RouteRecordRedirect
 
-export const START_LOCATION_NORMALIZED: RouteLocationNormalized = markNonReactive(
+export const START_LOCATION_NORMALIZED: RouteLocationNormalizedResolved = markNonReactive(
   {
     path: '/',
     name: undefined,
@@ -166,9 +185,10 @@ export const START_LOCATION_NORMALIZED: RouteLocationNormalized = markNonReactiv
 )
 
 // make matched non enumerable for easy printing
-Object.defineProperty(START_LOCATION_NORMALIZED, 'matched', {
-  enumerable: false,
-})
+// NOTE: commented for tests at RouterView.spec
+// Object.defineProperty(START_LOCATION_NORMALIZED, 'matched', {
+//   enumerable: false,
+// })
 
 // Matcher types
 // the matcher doesn't care about query and hash
@@ -198,11 +218,13 @@ export interface MatcherLocationRedirect {
 export interface NavigationGuardCallback {
   (): void
   (location: RouteLocation): void
-  (valid: false): void
+  (valid: boolean): void
   (cb: (vm: any) => void): void
 }
 
-export interface NavigationGuard<V = void> {
+export type NavigationGuardNextCallback = (vm: any) => any
+
+export interface NavigationGuard<V = ComponentPublicInstance> {
   (
     this: V,
     // TODO: we could maybe add extra information like replace: true/false

@@ -1,7 +1,10 @@
+<<<<<<< HEAD
 .idea
 .vscode
 __build__
 __tests__
+=======
+>>>>>>> 998ca92d2040cb5951839fb03a4b954e5507f825
 dist
 examples_dist
 node_modules
@@ -16,3 +19,7 @@ e2e/screenshots
 examples/__build__
 playground_dist
 yarn-error.log
+<<<<<<< HEAD
+=======
+temp
+>>>>>>> 998ca92d2040cb5951839fb03a4b954e5507f825

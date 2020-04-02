@@ -1,77 +1,34 @@
-import { createRouter, createWebHashHistory, useRoute } from '../../src'
+import { Router, plugin, createHashHistory } from '../../src'
 import { RouteComponent } from '../../src/types'
-import { createApp, defineComponent, computed } from 'vue'
+import Vue from 'vue'
 
 const component: RouteComponent = {
   template: `<div>A component</div>`,
 }
 
 const Home: RouteComponent = {
-  template: `
-    <div>
-        Home
-       <pre>
-            {{currentLocation}}
-        </pre>
-        
-    </div>`,
-  setup() {
-
-    const route = useRoute()
-    const currentLocation = computed(() => {
-      const { matched, ...rest } = route.value
-      return rest
-
-    })
-    return { currentLocation }
-  },
+  template: `<div>Home</div>`,
 }
 
 const Document: RouteComponent = {
   template: `<div>Document: {{ $route.params.id }}</div>`,
 }
 
-const router = createRouter({
-  history: createWebHashHistory('/' + __dirname),
+const router = new Router({
+  history: createHashHistory('/' + __dirname),
   routes: [
-    { path: '/', component: Home, name: 'home', meta: { h1: true } },
+    { path: '/', component: Home, name: 'home' },
     { path: '/documents/:id', name: 'docs', component: Document },
     { path: encodeURI('/n/€'), name: 'euro', component },
   ],
 })
 
-const App = defineComponent({
-  template: `
-			<div>
-					<router-view></router-view>
-	
-	      <h2>App route object: </h2>
-				<pre>
-					{{currentLocation}}
-        </pre>
-		
-			</div>
-  `,
-  // $route 作为保留字，无法使用
-  setup() {
-    const route = useRoute()
-    const currentLocation = computed(() => {
-      const { matched, ...rest } = route.value
-      return rest
-    })
-    return {
-      currentLocation,
-    }
-  },
+// use the router
+Vue.use(plugin)
 
+// @ts-ignore
+window.vm = new Vue({
+  el: '#app',
+  // @ts-ignore
+  router,
 })
-
-declare global {
-  interface Window {
-    vm: any;
-  }
-}
-const app = createApp(App)
-app.use(router)
-app.mount('#app')
-window.vm = app

@@ -34,7 +34,7 @@ beforeEach(() => {
   beforeRouteUpdate.mockReset()
 })
 
-describe.skip('beforeRouteUpdate', () => {
+describe('beforeRouteUpdate', () => {
   beforeAll(() => {
     createDom()
   })
@@ -51,25 +51,6 @@ describe.skip('beforeRouteUpdate', () => {
         expect(beforeRouteUpdate).toHaveBeenCalledTimes(1)
       })
 
-      // TODO: add async component
-      it.skip('resolves async components before guarding', async () => {
-        const spy = jest.fn((to, from, next) => next())
-        const component = {
-          template: `<div></div>`,
-          beforeRouteUpdate: spy,
-        }
-        const router = createRouter({
-          routes: [
-            ...routes,
-            { path: '/async/:a', component: () => Promise.resolve(component) },
-          ],
-        })
-        await router[navigationMethod]('/async/a')
-        expect(spy).not.toHaveBeenCalled()
-        await router[navigationMethod]('/async/b')
-        expect(spy).toHaveBeenCalledTimes(1)
-      })
-
       it('waits before navigating', async () => {
         const [promise, resolve] = fakePromise()
         const router = createRouter({ routes })
@@ -84,6 +65,11 @@ describe.skip('beforeRouteUpdate', () => {
         await p
         expect(router.currentRoute.value.fullPath).toBe('/guard/foo')
       })
+
+      it.todo('invokes with the component context')
+      it.todo('invokes with the component context with named views')
+      it.todo('invokes with the component context with nested views')
+      it.todo('invokes with the component context with nested named views')
     })
   })
 })

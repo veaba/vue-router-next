@@ -98,7 +98,11 @@ beforeEach(() => {
   resetMocks()
 })
 
+<<<<<<< HEAD
 describe.skip('beforeRouteLeave', () => {
+=======
+describe('beforeRouteLeave', () => {
+>>>>>>> 998ca92d2040cb5951839fb03a4b954e5507f825
   beforeAll(() => {
     createDom()
   })
@@ -167,6 +171,7 @@ describe.skip('beforeRouteLeave', () => {
         expect(nested.nestedNestedFoo).toHaveBeenCalledTimes(1)
       })
 
+<<<<<<< HEAD
       // TODO: implem async components
       it.skip('works when a lazy loaded component', async () => {
         const router = createRouter({
@@ -187,6 +192,8 @@ describe.skip('beforeRouteLeave', () => {
         expect(beforeRouteLeave).toHaveBeenCalledTimes(1)
       })
 
+=======
+>>>>>>> 998ca92d2040cb5951839fb03a4b954e5507f825
       it('can cancel navigation', async () => {
         const router = createRouter({ routes })
         beforeRouteLeave.mockImplementationOnce(async (to, from, next) => {
@@ -199,6 +206,14 @@ describe.skip('beforeRouteLeave', () => {
         await p.catch(err => {}) // catch the navigation abortion
         expect(currentRoute.fullPath).toBe('/guard')
       })
+<<<<<<< HEAD
+=======
+
+      it.todo('invokes with the component context')
+      it.todo('invokes with the component context with named views')
+      it.todo('invokes with the component context with nested views')
+      it.todo('invokes with the component context with nested named views')
+>>>>>>> 998ca92d2040cb5951839fb03a4b954e5507f825
     })
   })
 })

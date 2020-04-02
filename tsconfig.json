@@ -1,23 +1,28 @@
 {
   "include": ["src/global.d.ts", "src/**/*.ts", "__tests__/**/*.ts"],
   "compilerOptions": {
-    "target": "esnext",
-    "module": "commonjs",
-    // "lib": ["es2017.object"] /* Specify library files to be included in the compilation. */,
-    "declaration": true,
-    // "declarationMap": true,
-    "sourceMap": true,
-    "outDir": "./dist",
-    "removeComments": false,
+    "baseUrl": ".",
+    "rootDir": ".",
+    "outDir": "dist",
+    "sourceMap": false,
     "noEmit": true,
-
-    "strict": true,
-
-    "noUnusedLocals": true,
-    // "noUnusedParameters": true,
-    "noImplicitReturns": true,
-
+    "target": "esnext",
+    "module": "esnext",
     "moduleResolution": "node",
-    "esModuleInterop": true
+    "allowJs": false,
+    "noUnusedLocals": true,
+    "strictNullChecks": true,
+    "noImplicitAny": true,
+    "noImplicitThis": true,
+    "noImplicitReturns": true,
+    "strict": true,
+    "isolatedModules": false,
+    "experimentalDecorators": true,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "removeComments": false,
+    "jsx": "preserve",
+    "lib": ["esnext", "dom"],
+    "types": ["jest", "node"]
   }
 }

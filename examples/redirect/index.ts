@@ -24,7 +24,7 @@ const router: any = createRouter({
         { path: 'baz', name: 'baz', component: Baz },
         { path: 'with-params/:id', component: WithParams },
         // relative redirect to a sibling route
-        { path: 'relative-redirect', redirect: 'foo' },
+        { path: 'relative-redirect', redirect: '/foo' },
       ],
     },
     // absolute redirect

@@ -1,7 +1,10 @@
 import { extractComponentsGuards } from '../src/utils'
 import { START_LOCATION_NORMALIZED, RouteRecord } from '../src/types'
 import { components } from './utils'
+<<<<<<< HEAD
 import { RouteRecordNormalized } from '../src/matcher/types'
+=======
+>>>>>>> 998ca92d2040cb5951839fb03a4b954e5507f825
 import { normalizeRouteRecord } from '../src/matcher'
 
 const beforeRouteEnter = jest.fn()
@@ -23,6 +26,7 @@ const SingleGuardNamed: RouteRecord = {
   },
 }
 
+<<<<<<< HEAD
 function makeAsync(
   record: Exclude<RouteRecord, { redirect: any }>
 ): RouteRecordNormalized {
@@ -54,6 +58,8 @@ function makeAsync(
   }
 }
 
+=======
+>>>>>>> 998ca92d2040cb5951839fb03a4b954e5507f825
 beforeEach(() => {
   beforeRouteEnter.mockReset()
   beforeRouteEnter.mockImplementation((to, from, next) => {
@@ -63,7 +69,12 @@ beforeEach(() => {
 
 async function checkGuards(
   components: Exclude<RouteRecord, { redirect: any }>[],
+<<<<<<< HEAD
   n: number
+=======
+  n: number,
+  guardsLength: number = n
+>>>>>>> 998ca92d2040cb5951839fb03a4b954e5507f825
 ) {
   beforeRouteEnter.mockClear()
   const guards = await extractComponentsGuards(
@@ -73,7 +84,11 @@ async function checkGuards(
     to,
     from
   )
+<<<<<<< HEAD
   expect(guards).toHaveLength(n)
+=======
+  expect(guards).toHaveLength(guardsLength)
+>>>>>>> 998ca92d2040cb5951839fb03a4b954e5507f825
   for (const guard of guards) {
     expect(guard).toBeInstanceOf(Function)
     expect(await guard())
@@ -99,6 +114,7 @@ describe('extractComponentsGuards', () => {
     await checkGuards([SingleGuard, SingleGuard], 2)
     await checkGuards([SingleGuardNamed, SingleGuardNamed], 4)
   })
+<<<<<<< HEAD
 
   // TODO: async components
   it.skip('works with async components', async () => {
@@ -111,4 +127,6 @@ describe('extractComponentsGuards', () => {
       4
     )
   })
+=======
+>>>>>>> 998ca92d2040cb5951839fb03a4b954e5507f825
 })

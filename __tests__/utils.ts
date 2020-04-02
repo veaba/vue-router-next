@@ -4,8 +4,15 @@ import {
   RouteRecordMultipleViews,
   MatcherLocationNormalized,
   RouteLocationNormalized,
+<<<<<<< HEAD
 } from '../src/types'
 import { h, resolveComponent } from 'vue'
+=======
+  RouteRecordCommon,
+  RouteComponent,
+} from '../src/types'
+import { h, resolveComponent, ComponentOptions } from 'vue'
+>>>>>>> 998ca92d2040cb5951839fb03a4b954e5507f825
 
 export const tick = (time?: number) =>
   new Promise(resolve => {
@@ -13,6 +20,15 @@ export const tick = (time?: number) =>
     else process.nextTick(resolve)
   })
 
+<<<<<<< HEAD
+=======
+export async function ticks(n: number) {
+  for (let i = 0; i < n; i++) {
+    await tick()
+  }
+}
+
+>>>>>>> 998ca92d2040cb5951839fb03a4b954e5507f825
 export type NAVIGATION_METHOD = 'push' | 'replace'
 export const NAVIGATION_TYPES: NAVIGATION_METHOD[] = ['push', 'replace']
 
@@ -22,6 +38,11 @@ export interface RouteRecordViewLoose
     'path' | 'name' | 'components' | 'children' | 'meta' | 'beforeEnter'
   > {
   leaveGuards?: any
+<<<<<<< HEAD
+=======
+  instances: Record<string, any>
+  props?: RouteRecordCommon['props']
+>>>>>>> 998ca92d2040cb5951839fb03a4b954e5507f825
   aliasOf: RouteRecordViewLoose | undefined
 }
 
@@ -44,6 +65,10 @@ export interface MatcherLocationNormalizedLoose {
   redirectedFrom?: Partial<MatcherLocationNormalized>
   meta: any
   matched: Partial<RouteRecordViewLoose>[]
+<<<<<<< HEAD
+=======
+  instances: Record<string, any>
+>>>>>>> 998ca92d2040cb5951839fb03a4b954e5507f825
 }
 
 declare global {
@@ -83,6 +108,34 @@ export const components = {
   Home: { render: () => h('div', {}, 'Home') },
   Foo: { render: () => h('div', {}, 'Foo') },
   Bar: { render: () => h('div', {}, 'Bar') },
+<<<<<<< HEAD
+=======
+  User: {
+    props: {
+      id: {
+        default: 'default',
+      },
+    },
+    render() {
+      // @ts-ignore
+      return h('div', {}, 'User: ' + this.id)
+    },
+  } as ComponentOptions,
+  WithProps: {
+    props: {
+      id: {
+        default: 'default',
+      },
+      other: {
+        default: 'other',
+      },
+    },
+    render() {
+      // @ts-ignore
+      return h('div', {}, `id:${this.id};other:${this.other}`)
+    },
+  } as RouteComponent,
+>>>>>>> 998ca92d2040cb5951839fb03a4b954e5507f825
   Nested: {
     render: () => {
       const RouterView = resolveComponent('RouterView')

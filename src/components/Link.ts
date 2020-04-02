@@ -77,7 +77,6 @@ export const Link = defineComponent({
 
   setup(props, { slots, attrs }) {
     const link = reactive(useLink(props))
-    const slot:any=slots
     const elClass = computed(() => ({
       'router-link-active': link.isActive,
       'router-link-exact-active': link.isExactActive,
@@ -87,12 +86,13 @@ export const Link = defineComponent({
       return h(
         'a',
         {
-          class: elClass.value,
+          'aria-current': link.isExactActive ? 'page' : null,
           onClick: link.navigate,
           href: link.href,
           ...attrs,
+          class: elClass.value,
         },
-        slot.default(link)
+        slots.default && slots.default(link)
       )
     }
   },

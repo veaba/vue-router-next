@@ -1,13 +1,20 @@
 import fakePromise from 'faked-promise'
 import { createRouter, createMemoryHistory, createWebHistory } from '../src'
+<<<<<<< HEAD
 import { NavigationCancelled } from '../src/errors'
+=======
+import { ErrorTypes } from '../src/errors'
+>>>>>>> 998ca92d2040cb5951839fb03a4b954e5507f825
 import { createDom, components, tick } from './utils'
 import {
   RouteRecord,
   RouteLocation,
   START_LOCATION_NORMALIZED,
 } from '../src/types'
+<<<<<<< HEAD
 import { RouterHistory } from '../src/history/common'
+=======
+>>>>>>> 998ca92d2040cb5951839fb03a4b954e5507f825
 
 const routes: RouteRecord[] = [
   { path: '/', component: components.Home, name: 'home' },
@@ -34,11 +41,41 @@ const routes: RouteRecord[] = [
       hash: to.hash + '-2',
     }),
   },
+<<<<<<< HEAD
 ]
 
 async function newRouter({ history }: { history?: RouterHistory } = {}) {
   history = history || createMemoryHistory()
   const router = createRouter({ history, routes })
+=======
+  {
+    path: '/basic',
+    alias: '/basic-alias',
+    component: components.Foo,
+  },
+  {
+    path: '/aliases',
+    alias: ['/aliases1', '/aliases2'],
+    component: components.Nested,
+    children: [
+      {
+        path: 'one',
+        alias: ['o', 'o2'],
+        component: components.Foo,
+        children: [
+          { path: 'two', alias: ['t', 't2'], component: components.Bar },
+        ],
+      },
+    ],
+  },
+]
+
+async function newRouter(
+  options: Partial<Parameters<typeof createRouter>[0]> = {}
+) {
+  const history = options.history || createMemoryHistory()
+  const router = createRouter({ history, routes, ...options })
+>>>>>>> 998ca92d2040cb5951839fb03a4b954e5507f825
   await router.push('/')
 
   return { history, router }
@@ -70,6 +107,23 @@ describe('Router', () => {
     )
   })
 
+<<<<<<< HEAD
+=======
+  it('allows to customize parseQuery', async () => {
+    const parseQuery = jest.fn()
+    const { router } = await newRouter({ parseQuery })
+    router.resolve('/foo?bar=baz')
+    expect(parseQuery).toHaveBeenCalledWith('bar=baz')
+  })
+
+  it('allows to customize stringifyQuery', async () => {
+    const stringifyQuery = jest.fn()
+    const { router } = await newRouter({ stringifyQuery })
+    router.resolve({ query: { foo: 'bar' } })
+    expect(stringifyQuery).toHaveBeenCalledWith({ foo: 'bar' })
+  })
+
+>>>>>>> 998ca92d2040cb5951839fb03a4b954e5507f825
   it('can do initial navigation to /', async () => {
     const router = createRouter({
       history: createMemoryHistory(),
@@ -111,6 +165,57 @@ describe('Router', () => {
     )
   })
 
+<<<<<<< HEAD
+=======
+  it('navigates if the location does not exist', async () => {
+    const { router } = await newRouter()
+    const spy = jest.fn((to, from, next) => next())
+    router.beforeEach(spy)
+    await router.push('/idontexist')
+    expect(spy).toHaveBeenCalled()
+    expect(router.currentRoute.value).toMatchObject({ matched: [] })
+    spy.mockClear()
+    await router.push('/me-neither')
+    expect(router.currentRoute.value).toMatchObject({ matched: [] })
+    expect(spy).toHaveBeenCalled()
+  })
+
+  describe('alias', () => {
+    it('does not navigate to alias if already on original record', async () => {
+      const { router } = await newRouter()
+      const spy = jest.fn((to, from, next) => next())
+      await router.push('/basic')
+      router.beforeEach(spy)
+      await router.push('/basic-alias')
+      expect(spy).not.toHaveBeenCalled()
+    })
+
+    it('does not navigate to alias with children if already on original record', async () => {
+      const { router } = await newRouter()
+      const spy = jest.fn((to, from, next) => next())
+      await router.push('/aliases')
+      router.beforeEach(spy)
+      await router.push('/aliases1')
+      expect(spy).not.toHaveBeenCalled()
+      await router.push('/aliases2')
+      expect(spy).not.toHaveBeenCalled()
+    })
+
+    it('does not navigate to child alias if already on original record', async () => {
+      const { router } = await newRouter()
+      const spy = jest.fn((to, from, next) => next())
+      await router.push('/aliases/one')
+      router.beforeEach(spy)
+      await router.push('/aliases1/one')
+      expect(spy).not.toHaveBeenCalled()
+      await router.push('/aliases2/one')
+      expect(spy).not.toHaveBeenCalled()
+      await router.push('/aliases2/o')
+      expect(spy).not.toHaveBeenCalled()
+    })
+  })
+
+>>>>>>> 998ca92d2040cb5951839fb03a4b954e5507f825
   describe('navigation', () => {
     async function checkNavigationCancelledOnPush(
       target?: RouteLocation | false | ((vm: any) => void)
@@ -142,7 +247,11 @@ describe('Router', () => {
       try {
         await pA
       } catch (err) {
+<<<<<<< HEAD
         expect(err).toBeInstanceOf(NavigationCancelled)
+=======
+        expect(err.type).toBe(ErrorTypes.NAVIGATION_CANCELLED)
+>>>>>>> 998ca92d2040cb5951839fb03a4b954e5507f825
       }
       expect(router.currentRoute.value.fullPath).toBe('/p/b')
     }
@@ -241,9 +350,14 @@ describe('Router', () => {
     })
   })
 
+<<<<<<< HEAD
   describe('matcher', () => {
     // TODO: rewrite after redirect refactor
     it.skip('handles one redirect from route record', async () => {
+=======
+  describe('redirect', () => {
+    it('handles one redirect from route record', async () => {
+>>>>>>> 998ca92d2040cb5951839fb03a4b954e5507f825
       const history = createMemoryHistory()
       const router = createRouter({ history, routes })
       const loc = await router.push('/to-foo')
@@ -253,8 +367,22 @@ describe('Router', () => {
       })
     })
 
+<<<<<<< HEAD
     // TODO: rewrite after redirect refactor
     it.skip('drops query and params on redirect if not provided', async () => {
+=======
+    it('handles a double redirect from route record', async () => {
+      const history = createMemoryHistory()
+      const router = createRouter({ history, routes })
+      const loc = await router.push('/to-foo2')
+      expect(loc.name).toBe('Foo')
+      expect(loc.redirectedFrom).toMatchObject({
+        path: '/to-foo2',
+      })
+    })
+
+    it('drops query and params on redirect if not provided', async () => {
+>>>>>>> 998ca92d2040cb5951839fb03a4b954e5507f825
       const history = createMemoryHistory()
       const router = createRouter({ history, routes })
       const loc = await router.push('/to-foo?hey=foo#fa')
@@ -266,8 +394,12 @@ describe('Router', () => {
       })
     })
 
+<<<<<<< HEAD
     // TODO: rewrite after redirect refactor
     it.skip('allows object in redirect', async () => {
+=======
+    it('allows object in redirect', async () => {
+>>>>>>> 998ca92d2040cb5951839fb03a4b954e5507f825
       const history = createMemoryHistory()
       const router = createRouter({ history, routes })
       const loc = await router.push('/to-foo-named')
@@ -277,8 +409,12 @@ describe('Router', () => {
       })
     })
 
+<<<<<<< HEAD
     // TODO: rewrite after redirect refactor
     it.skip('can pass on query and hash when redirecting', async () => {
+=======
+    it('can pass on query and hash when redirecting', async () => {
+>>>>>>> 998ca92d2040cb5951839fb03a4b954e5507f825
       const history = createMemoryHistory()
       const router = createRouter({ history, routes })
       const loc = await router.push('/inc-query-hash?n=3#fa')
@@ -291,6 +427,11 @@ describe('Router', () => {
       })
       expect(loc.redirectedFrom).toMatchObject({
         fullPath: '/inc-query-hash?n=3#fa',
+<<<<<<< HEAD
+=======
+        query: { n: '3' },
+        hash: '#fa',
+>>>>>>> 998ca92d2040cb5951839fb03a4b954e5507f825
         path: '/inc-query-hash',
       })
     })
@@ -299,7 +440,11 @@ describe('Router', () => {
   it('allows base option in abstract history', async () => {
     const history = createMemoryHistory('/app/')
     const router = createRouter({ history, routes })
+<<<<<<< HEAD
     expect(router.currentRoute.value).toEqual({
+=======
+    expect(router.currentRoute.value).toMatchObject({
+>>>>>>> 998ca92d2040cb5951839fb03a4b954e5507f825
       name: undefined,
       fullPath: '/',
       hash: '',
@@ -322,7 +467,11 @@ describe('Router', () => {
   it('allows base option with html5 history', async () => {
     const history = createWebHistory('/app/')
     const router = createRouter({ history, routes })
+<<<<<<< HEAD
     expect(router.currentRoute.value).toEqual({
+=======
+    expect(router.currentRoute.value).toMatchObject({
+>>>>>>> 998ca92d2040cb5951839fb03a4b954e5507f825
       name: undefined,
       fullPath: '/',
       hash: '',

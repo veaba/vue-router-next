@@ -70,23 +70,7 @@
         <router-link to="/nested">/nested</router-link>
       </li>
       <li>
-        <router-link to="/nested/nested">/nested/nested</router-link>
-      </li>
-      <li>
-        <router-link to="/nested/nested/nested"
-          >/nested/nested/nested</router-link
-        >
-      </li>
-      <li>
         <router-link to="/anidado">/anidado</router-link>
-      </li>
-      <li>
-        <router-link to="/anidado/nested">/anidado/nested</router-link>
-      </li>
-      <li>
-        <router-link to="/anidado/nested/nested"
-          >/anidado/nested/nested</router-link
-        >
       </li>
       <li>
         <router-link to="/long-0">/long-0</router-link>
@@ -103,9 +87,6 @@
           >/users/{{ Number(currentLocation.params.id || 0) + 1 }}</router-link
         >
       </li>
-      <!-- <li>
-          <router-link :to="{ name: 'docs' }">Doc with same id</router-link>
-        </li> -->
       <li>
         <router-link to="/with-data">/with-data</router-link>
       </li>
@@ -133,46 +114,52 @@
       @before-enter="flushWaiter"
       @before-leave="setupWaiter"
     > -->
-    <router-view></router-view>
+    <Suspense>
+      <template #default>
+        <router-view></router-view>
+      </template>
+      <template #fallback>
+        Loading...
+      </template>
+    </Suspense>
     <!-- </transition> -->
   </div>
 </template>
 
 <script>
-  import { defineComponent, inject, computed } from 'vue'
-  import { scrollWaiter } from './scrollWaiter'
-  import { useRoute } from '../src'
-  
-  export default defineComponent({
-    name: 'App',
-    setup() {
-      const route = useRoute()
-      const state = inject('state')
-      
-      const currentLocation = computed(() => {
-        const { matched, ...rest } = route.value
-        return rest
-      })
-      
-      function flushWaiter() {
-        scrollWaiter.flush()
-      }
-      
-      function setupWaiter() {
-        scrollWaiter.add()
-      }
-      
-      const nextUserLink = computed(
-        () => '/users/' + String((Number(route.value.params.id) || 0) + 1),
-      )
-      
-      return {
-        currentLocation,
-        nextUserLink,
-        state,
-        flushWaiter,
-        setupWaiter,
-      }
-    },
-  })
+import { defineComponent, inject, computed } from 'vue'
+import { scrollWaiter } from './scrollWaiter'
+import { useRoute } from '../src'
+
+export default defineComponent({
+  name: 'App',
+  setup() {
+    const route = useRoute()
+    const state = inject('state')
+
+    const currentLocation = computed(() => {
+      const { matched, ...rest } = route.value
+      return rest
+    })
+
+    function flushWaiter() {
+      scrollWaiter.flush()
+    }
+    function setupWaiter() {
+      scrollWaiter.add()
+    }
+
+    const nextUserLink = computed(
+      () => '/users/' + String((Number(route.value.params.id) || 0) + 1)
+    )
+
+    return {
+      currentLocation,
+      nextUserLink,
+      state,
+      flushWaiter,
+      setupWaiter,
+    }
+  },
+})
 </script>

@@ -1,3 +1,7 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
+<<<<<<< HEAD
 exports[`RouterLink v-slot provides information on v-slot 1`] = `"<a class=\\"router-link-active router-link-exact-active\\" href=\\"/home\\"> route: {\\"fullPath\\":\\"/home\\",\\"path\\":\\"/home\\",\\"params\\":{},\\"meta\\":{},\\"query\\":{},\\"hash\\":\\"\\",\\"matched\\":[{}]} href: \\"/home\\" isActive: \\"true\\" isExactActive: \\"true\\" </a>"`;
+=======
+exports[`RouterLink v-slot provides information on v-slot 1`] = `"<a aria-current=\\"page\\" href=\\"/home\\" class=\\"router-link-active router-link-exact-active\\"> route: {\\"fullPath\\":\\"/home\\",\\"path\\":\\"/home\\",\\"params\\":{},\\"meta\\":{},\\"query\\":{},\\"hash\\":\\"\\",\\"matched\\":[{}]} href: \\"/home\\" isActive: \\"true\\" isExactActive: \\"true\\" </a>"`;
+>>>>>>> 998ca92d2040cb5951839fb03a4b954e5507f825

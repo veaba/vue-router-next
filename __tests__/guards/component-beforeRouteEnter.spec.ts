@@ -116,7 +116,11 @@ beforeEach(() => {
   resetMocks()
 })
 
+<<<<<<< HEAD
 describe.skip('beforeRouteEnter', () => {
+=======
+describe('beforeRouteEnter', () => {
+>>>>>>> 998ca92d2040cb5951839fb03a4b954e5507f825
   beforeAll(() => {
     createDom()
   })
@@ -192,6 +196,7 @@ describe.skip('beforeRouteEnter', () => {
         expect(router.currentRoute.value.fullPath).not.toBe('/named')
       })
 
+<<<<<<< HEAD
       // TODO: async components
       it.skip('resolves async components before guarding', async () => {
         const spy = jest.fn(noGuard)
@@ -211,6 +216,8 @@ describe.skip('beforeRouteEnter', () => {
         expect(spy).toHaveBeenCalledTimes(1)
       })
 
+=======
+>>>>>>> 998ca92d2040cb5951839fb03a4b954e5507f825
       it('does not call beforeRouteEnter if we were already on the page', async () => {
         const router = createRouter({ routes })
         beforeRouteEnter.mockImplementation(noGuard)
@@ -234,8 +241,13 @@ describe.skip('beforeRouteEnter', () => {
         expect(router.currentRoute.value.fullPath).toBe('/foo')
       })
 
+<<<<<<< HEAD
       // not implemented yet as it depends on Vue 3 Suspense
       it.skip('calls next callback', done => {
+=======
+      // TODO:
+      it.skip('calls next callback', async done => {
+>>>>>>> 998ca92d2040cb5951839fb03a4b954e5507f825
         const router = createRouter({ routes })
         beforeRouteEnter.mockImplementationOnce((to, from, next) => {
           next(vm => {
@@ -244,6 +256,12 @@ describe.skip('beforeRouteEnter', () => {
             done()
           })
         })
+<<<<<<< HEAD
+=======
+
+        await router.push('/')
+        await router.push('/guard/2')
+>>>>>>> 998ca92d2040cb5951839fb03a4b954e5507f825
       })
 
       it.skip('calls next callback after waiting', async done => {
