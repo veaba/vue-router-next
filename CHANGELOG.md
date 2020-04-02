@@ -1,5 +1,3 @@
-<<<<<<< HEAD
-=======
 # [4.0.0-alpha.3](https://github.com/vuejs/vue-router-next/compare/v4.0.0-alpha.2...v4.0.0-alpha.3) (2020-03-14)
 
 
@@ -24,7 +22,6 @@
 
 
 
->>>>>>> 998ca92d2040cb5951839fb03a4b954e5507f825
 # [4.0.0-alpha.1](https://github.com/vuejs/vue-router-next/compare/v4.0.0-alpha.0...v4.0.0-alpha.1) (2020-02-26)
 
 
