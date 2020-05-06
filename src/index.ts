@@ -1,17 +1,50 @@
-import createWebHistory from './history/html5'
-import createMemoryHistory from './history/memory'
-import createWebHashHistory from './history/hash'
+export { createWebHistory } from './history/html5'
+export { createMemoryHistory } from './history/memory'
+export { createWebHashHistory } from './history/hash'
 
 export {
+  LocationQuery,
+  parseQuery,
+  stringifyQuery,
+  LocationQueryRaw,
+  LocationQueryValue,
+} from './query'
+
+export { RouterHistory } from './history/common'
+
+export { RouteRecord, RouteRecordNormalized } from './matcher/types'
+export {
+  PathParserOptions,
+  _PathParserOptions,
+} from './matcher/pathParserRanker'
+
+export {
+  _RouteLocationBase,
+  _RouteRecordBase,
+  RouteLocationRaw,
+  RouteLocation,
   RouteLocationNormalized,
-  RouteLocationOptions,
+  RouteLocationNormalizedLoaded,
   START_LOCATION_NORMALIZED as START_LOCATION,
+  RouteParams,
+  RouteLocationMatched,
+  RouteLocationOptions,
+  RouteRecordRaw,
+  NavigationGuard,
+  PostNavigationGuard,
 } from './types'
-export { createRouter, Router, RouterOptions } from './router'
+export {
+  createRouter,
+  Router,
+  RouterOptions,
+  ErrorHandler,
+  ScrollBehavior,
+} from './router'
 
-export { onBeforeRouteLeave } from './navigationGuards'
-export { useRoute, useRouter } from './injectKeys'
-export { Link } from './components/Link'
-export { View } from './components/View'
+export { NavigationFailureType, NavigationFailure } from './errors'
 
-export { createWebHistory, createMemoryHistory, createWebHashHistory }
+export { onBeforeRouteLeave, onBeforeRouteUpdate } from './navigationGuards'
+export { RouterLink, useLink } from './RouterLink'
+export { RouterView } from './RouterView'
+
+export * from './useApi'

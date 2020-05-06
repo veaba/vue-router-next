@@ -3,7 +3,7 @@ import {
   encodeParam,
   encodeQueryProperty,
   // decode,
-} from '../src/utils/encoding'
+} from '../src/encoding'
 
 describe('Encoding', () => {
   // all ascii chars with a non ascii char at the beginning
@@ -30,10 +30,7 @@ describe('Encoding', () => {
     const encodedToEncode = toEncode
       .split('')
       .map(c => {
-        const hex = c
-          .charCodeAt(0)
-          .toString(16)
-          .toUpperCase()
+        const hex = c.charCodeAt(0).toString(16).toUpperCase()
         return '%' + (hex.length > 1 ? hex : '0' + hex)
       })
       .join('')
@@ -65,10 +62,7 @@ describe('Encoding', () => {
     const encodedToEncode = toEncode
       .split('')
       .map(c => {
-        const hex = c
-          .charCodeAt(0)
-          .toString(16)
-          .toUpperCase()
+        const hex = c.charCodeAt(0).toString(16).toUpperCase()
         return '%' + (hex.length > 1 ? hex : '0' + hex)
       })
       .join('')
@@ -102,10 +96,7 @@ describe('Encoding', () => {
     const encodedToEncode = toEncode
       .split('')
       .map(c => {
-        const hex = c
-          .charCodeAt(0)
-          .toString(16)
-          .toUpperCase()
+        const hex = c.charCodeAt(0).toString(16).toUpperCase()
         return '%' + (hex.length > 1 ? hex : '0' + hex)
       })
       .join('')

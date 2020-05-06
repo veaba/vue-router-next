@@ -1,7 +1,6 @@
 const axios = require('axios')
 
-const BS_USER = process.env.BS_USER
-const BS_KEY = process.env.BS_KEY
+const { BS_USER, BS_KEY } = process.env
 
 function getKey(client) {
   // const { capabilities, currentTest } = client
@@ -22,9 +21,9 @@ function shouldSkipBrowserstackReporting(client) {
 }
 
 /**
- * Generates an object with beforeEach and afterEach functions to be added
- * to every test suite. It cannot be added globably because these must be
- * executed before each test (instead of each test suite as it does in globalModules)
+ * Generates an object with beforeEach and afterEach functions to be added to
+ * every test suite. It cannot be added globally because these must be executed
+ * before each test (instead of each test suite as it does in globalModules)
  */
 module.exports = function sendStatus() {
   const sessionMap = Object.create(null)

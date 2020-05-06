@@ -12,6 +12,7 @@ describe('normalizeRouteRecord', () => {
       aliasOf: undefined,
       components: { default: {} },
       leaveGuards: [],
+      updateGuards: [],
       instances: {},
       meta: {},
       name: undefined,
@@ -35,6 +36,7 @@ describe('normalizeRouteRecord', () => {
       children: [{ path: '/child' }],
       components: { default: {} },
       leaveGuards: [],
+      updateGuards: [],
       instances: {},
       meta: { foo: true },
       name: 'name',
@@ -52,16 +54,12 @@ describe('normalizeRouteRecord', () => {
     })
 
     expect(record).toEqual({
-      beforeEnter: expect.any(Function),
-      children: [],
       aliasOf: undefined,
       components: {},
-      leaveGuards: [],
-      instances: {},
       meta: { foo: true },
       name: 'name',
       path: '/redirect',
-      props: false,
+      redirect: '/home',
     })
   })
 
@@ -80,73 +78,12 @@ describe('normalizeRouteRecord', () => {
       children: [{ path: '/child' }],
       components: { one: {} },
       leaveGuards: [],
+      updateGuards: [],
       instances: {},
       meta: { foo: true },
       name: 'name',
       path: '/home',
       props: false,
     })
-  })
-
-  it('transforms a redirect record into a beforeEnter guard', () => {
-    const record = normalizeRouteRecord({
-      path: '/redirect',
-      redirect: '/home',
-    })
-    expect(record).toEqual({
-      beforeEnter: expect.any(Function),
-      children: [],
-      aliasOf: undefined,
-      components: {},
-      leaveGuards: [],
-      instances: {},
-      meta: {},
-      name: undefined,
-      path: '/redirect',
-      props: false,
-    })
-  })
-
-  it('beforeEnter is called with the string redirect', () => {
-    const record = normalizeRouteRecord({
-      path: '/redirect',
-      redirect: '/home',
-    })
-
-    let spy = jest.fn()
-    ;(record.beforeEnter as Function)({} as any, {} as any, spy)
-    expect(spy).toHaveBeenCalledTimes(1)
-    expect(spy).toHaveBeenCalledWith('/home')
-  })
-
-  it('beforeEnter is called with object redirect', () => {
-    const record = normalizeRouteRecord({
-      path: '/redirect',
-      redirect: { name: 'home' },
-    })
-
-    let spy = jest.fn()
-    ;(record.beforeEnter as Function)({} as any, {} as any, spy)
-    expect(spy).toHaveBeenCalledTimes(1)
-    expect(spy).toHaveBeenCalledWith({ name: 'home' })
-  })
-
-  it('function redirect is invoked by beforeEnter', () => {
-    const redirect = jest.fn(() => '/home')
-    const record = normalizeRouteRecord({
-      path: '/redirect',
-      redirect,
-    })
-
-    let spy = jest.fn()
-    ;(record.beforeEnter as Function)(
-      { path: '/redirect' } as any,
-      {} as any,
-      spy
-    )
-    expect(redirect).toHaveBeenCalledTimes(1)
-    expect(redirect).toHaveBeenCalledWith({ path: '/redirect' })
-    expect(spy).toHaveBeenCalledTimes(1)
-    expect(spy).toHaveBeenCalledWith('/home')
   })
 })
