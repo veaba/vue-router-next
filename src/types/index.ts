@@ -1,28 +1,31 @@
-import { LocationQuery, LocationQueryRaw } from '../utils/query'
-import { PathParserOptions } from '../matcher/path-parser-ranker'
-import { markNonReactive, ComponentOptions, ComponentPublicInstance } from 'vue'
-import { RouteRecordNormalized } from '../matcher/types'
+import { LocationQuery, LocationQueryRaw } from '../query'
+import { PathParserOptions } from '../matcher'
+import { Ref, ComputedRef, ComponentOptions } from 'vue'
+import { RouteRecord, RouteRecordNormalized } from '../matcher/types'
+import { HistoryState } from '../history/common'
+import { NavigationFailure } from '../errors'
 
 export type Lazy<T> = () => Promise<T>
 export type Override<T, U> = Pick<T, Exclude<keyof T, keyof U>> & U
 
+// TODO: find a better way to type readonly types. Readonly<T> is non recursive, maybe we should use it at multiple places. It would also allow preventing the problem Immutable create.
 export type Immutable<T> = {
   readonly [P in keyof T]: Immutable<T[P]>
 }
 
+export type VueUseOptions<T> = {
+  [k in keyof T]: Ref<T[k]> | T[k] | ComputedRef<T[k]>
+}
+
 export type TODO = any
 
-export type ListenerRemover = () => void
-
 export type RouteParamValue = string
-// TODO: should we allow more values like numbers and normalize them to strings?
-// type RouteParamValueRaw = RouteParamValue | number
+export type RouteParamValueRaw = RouteParamValue | number
 export type RouteParams = Record<string, RouteParamValue | RouteParamValue[]>
-export type RouteParamsRaw = RouteParams
-// export type RouteParamsRaw = Record<
-//   string,
-//   RouteParamValueRaw | RouteParamValueRaw[]
-// >
+export type RouteParamsRaw = Record<
+  string,
+  RouteParamValueRaw | RouteParamValueRaw[]
+>
 
 export interface RouteQueryAndHash {
   query?: LocationQueryRaw
@@ -32,8 +35,17 @@ export interface LocationAsPath {
   path: string
 }
 
+export interface LocationAsNameRaw {
+  name: RouteRecordName
+  params?: RouteParamsRaw
+}
+
 export interface LocationAsName {
-  name: string
+  name: RouteRecordName
+  params?: RouteParams
+}
+
+export interface LocationAsRelativeRaw {
   params?: RouteParamsRaw
 }
 
@@ -50,139 +62,160 @@ export interface RouteLocationOptions {
    * Triggers the navigation even if the location is the same as the current one
    */
   force?: boolean
+  /**
+   * State to save using the History API. This cannot contain any reactive values and some primitives like Symbols are forbidden. More info at TODO: link mdn
+   */
+  state?: HistoryState
 }
 
-// User level location
-export type RouteLocation =
+/**
+ * User-level route location
+ */
+export type RouteLocationRaw =
   | string
   | (RouteQueryAndHash & LocationAsPath & RouteLocationOptions)
-  | (RouteQueryAndHash & LocationAsName & RouteLocationOptions)
-  | (RouteQueryAndHash & LocationAsRelative & RouteLocationOptions)
+  | (RouteQueryAndHash & LocationAsNameRaw & RouteLocationOptions)
+  | (RouteQueryAndHash & LocationAsRelativeRaw & RouteLocationOptions)
 
 export interface RouteLocationMatched extends RouteRecordNormalized {
+  // components cannot be Lazy<RouteComponent>
   components: Record<string, RouteComponent>
 }
 
-// A matched record cannot be a redirection and must contain
+/**
+ * Base properties for a normalized route location.
+ *
+ * @internal
+ */
+export interface _RouteLocationBase {
+  path: string
+  fullPath: string
+  query: LocationQuery
+  hash: string
+  name: RouteRecordName | null | undefined
+  params: RouteParams
+  redirectedFrom: RouteLocation | undefined
+  meta: Record<string | number | symbol, any>
+}
 
 // matched contains resolved components
-export interface RouteLocationNormalizedResolved {
-  path: string
-  fullPath: string
-  query: LocationQuery
-  hash: string
-  name: string | null | undefined
-  params: RouteParams
+/**
+ * {@link RouteLocationRaw} with
+ */
+export interface RouteLocationNormalizedLoaded extends _RouteLocationBase {
+  /**
+   * Array of {@link RouteLocationMatched} containing only plain components (any
+   * lazy-loaded components have been loaded and were replaced inside of the
+   * `components` object) so it can be directly used to display routes. It
+   * cannot contain redirect records either
+   */
   matched: RouteLocationMatched[] // non-enumerable
-  redirectedFrom: RouteLocationNormalized | undefined
-  meta: Record<string | number | symbol, any>
 }
 
-export interface RouteLocationNormalized {
-  path: string
-  fullPath: string
-  query: LocationQuery
-  hash: string
-  name: string | null | undefined
-  params: RouteParams
+/**
+ * {@link RouteLocationRaw} resolved using the matcher
+ */
+export interface RouteLocation extends _RouteLocationBase {
+  /**
+   * Array of {@link RouteRecord} containing components as they were
+   * passed when adding records. It can also contain redirect records. This
+   * can't be used directly
+   */
+  matched: RouteRecord[] // non-enumerable
+}
+
+/**
+ * Similar to {@link RouteLocation} but its
+ * {@link RouteLocationNormalized.matched} cannot contain redirect records
+ */
+export interface RouteLocationNormalized extends _RouteLocationBase {
+  /**
+   * Array of {@link RouteRecordNormalized}
+   */
   matched: RouteRecordNormalized[] // non-enumerable
-  // TODO: make it an array?
-  redirectedFrom: RouteLocationNormalized | undefined
-  meta: Record<string | number | symbol, any>
 }
 
-// interface PropsTransformer {
-//   (params: RouteParams): any
-// }
-
-// export interface RouterLocation<PT extends PropsTransformer> {
-//   record: RouteRecord<PT>
-//   path: string
-//   params: ReturnType<PT>
-// }
-
-// TODO: type this for beforeRouteUpdate and beforeRouteLeave
-// TODO: support arrays
-export interface RouteComponentInterface {
-  beforeRouteEnter?: NavigationGuard<undefined>
-  /**
-   * Guard called when the router is navigating away from the current route
-   * that is rendering this component.
-   * @param to RouteLocation we are navigating to
-   * @param from RouteLocation we are navigating from
-   * @param next function to validate, cancel or modify (by redirectering) the navigation
-   */
-  beforeRouteLeave?: NavigationGuard
-  /**
-   * Guard called whenever the route that renders this component has changed but
-   * it is reused for the new route. This allows you to guard for changes in params,
-   * the query or the hash.
-   * @param to RouteLocation we are navigating to
-   * @param from RouteLocation we are navigating from
-   * @param next function to validate, cancel or modify (by redirectering) the navigation
-   */
-  beforeRouteUpdate?: NavigationGuard
-}
-
-// TODO: allow defineComponent export type RouteComponent = (Component | ReturnType<typeof defineComponent>) &
-export type RouteComponent = ComponentOptions & RouteComponentInterface
+export type RouteComponent = ComponentOptions
 export type RawRouteComponent = RouteComponent | Lazy<RouteComponent>
 
+export type RouteRecordName = string | symbol
+
 // TODO: could this be moved to matcher?
-export interface RouteRecordCommon {
+/**
+ * Common properties among all kind of {@link RouteRecordRaw}
+ */
+export interface _RouteRecordBase extends PathParserOptions {
+  /**
+   * Path of the record. Should start with `/` unless the record is the child of
+   * another record.
+   */
   path: string
+  /**
+   * Aliases for the record. Allows defining extra paths that will behave like a
+   * copy of the record. Allows having paths shorthands like `/users/:id` and
+   * `/u/:id`. All `alias` and `path` values must share the same params.
+   */
   alias?: string | string[]
-  name?: string
+  /**
+   * Name for the route record.
+   */
+  name?: RouteRecordName
+  /**
+   * Allow passing down params as props to the component rendered by `router-view`.
+   */
   props?:
     | boolean
     | Record<string, any>
     | ((to: RouteLocationNormalized) => Record<string, any>)
-  // TODO: beforeEnter has no effect with redirect, move and test
-  beforeEnter?: NavigationGuard<undefined> | NavigationGuard<undefined>[]
+  /**
+   * Before Enter guard specific to this record. Note `beforeEnter` has no
+   * effect if the record has a `redirect` property.
+   */
+  beforeEnter?:
+    | NavigationGuardWithThis<undefined>
+    | NavigationGuardWithThis<undefined>[]
+  /**
+   * Arbitrary data attached to the record.
+   */
   meta?: Record<string | number | symbol, any>
-  // TODO: only allow a subset?
-  // TODO: RFC: remove this and only allow global options
-  options?: PathParserOptions
 }
 
 export type RouteRecordRedirectOption =
-  | RouteLocation
-  | ((to: Immutable<RouteLocationNormalized>) => RouteLocation)
-export interface RouteRecordRedirect extends RouteRecordCommon {
+  | RouteLocationRaw
+  | ((to: RouteLocation) => RouteLocationRaw)
+export interface RouteRecordRedirectRaw extends _RouteRecordBase {
   redirect: RouteRecordRedirectOption
   beforeEnter?: never
   component?: never
   components?: never
 }
 
-export interface RouteRecordSingleView extends RouteRecordCommon {
+export interface RouteRecordSingleView extends _RouteRecordBase {
   component: RawRouteComponent
-  children?: RouteRecord[]
+  children?: RouteRecordRaw[]
 }
 
-export interface RouteRecordMultipleViews extends RouteRecordCommon {
+export interface RouteRecordMultipleViews extends _RouteRecordBase {
   components: Record<string, RawRouteComponent>
-  children?: RouteRecord[]
+  children?: RouteRecordRaw[]
 }
 
-export type RouteRecord =
+export type RouteRecordRaw =
   | RouteRecordSingleView
   | RouteRecordMultipleViews
-  | RouteRecordRedirect
+  | RouteRecordRedirectRaw
 
-export const START_LOCATION_NORMALIZED: RouteLocationNormalizedResolved = markNonReactive(
-  {
-    path: '/',
-    name: undefined,
-    params: {},
-    query: {},
-    hash: '',
-    fullPath: '/',
-    matched: [],
-    meta: {},
-    redirectedFrom: undefined,
-  }
-)
+export const START_LOCATION_NORMALIZED: RouteLocationNormalizedLoaded = {
+  path: '/',
+  name: undefined,
+  params: {},
+  query: {},
+  hash: '',
+  fullPath: '/',
+  matched: [],
+  meta: {},
+  redirectedFrom: undefined,
+}
 
 // make matched non enumerable for easy printing
 // NOTE: commented for tests at RouterView.spec
@@ -192,56 +225,56 @@ export const START_LOCATION_NORMALIZED: RouteLocationNormalizedResolved = markNo
 
 // Matcher types
 // the matcher doesn't care about query and hash
-export type MatcherLocation =
+export type MatcherLocationRaw =
   | LocationAsPath
   | LocationAsName
   | LocationAsRelative
 
-// TODO: should probably be the other way around: RouteLocationNormalized extending from MatcherLocationNormalized
-export interface MatcherLocationNormalized
+// TODO: should probably be the other way around: RouteLocationNormalized extending from MatcherLocation
+export interface MatcherLocation
   extends Pick<
-    RouteLocationNormalized,
+    RouteLocation,
     'name' | 'path' | 'params' | 'matched' | 'meta'
   > {}
 
-// used when the route records requires a redirection
-// with a function call. The matcher isn't able to do it
-// by itself, so it dispatches the information so the router
-// can pick it up
-export interface MatcherLocationRedirect {
-  redirect: RouteRecordRedirectOption
-  normalizedLocation: MatcherLocationNormalized
-}
-
-// TODO: remove any to type vm and use a generic that comes from the component
-// where the navigation guard callback is defined
 export interface NavigationGuardCallback {
   (): void
-  (location: RouteLocation): void
+  (error: Error): void
+  (location: RouteLocationRaw): void
   (valid: boolean): void
-  (cb: (vm: any) => void): void
+  (cb: NavigationGuardNextCallback): void
 }
 
 export type NavigationGuardNextCallback = (vm: any) => any
 
-export interface NavigationGuard<V = ComponentPublicInstance> {
+export interface NavigationGuard {
   (
-    this: V,
     // TODO: we could maybe add extra information like replace: true/false
-    to: Immutable<RouteLocationNormalized>,
-    from: Immutable<RouteLocationNormalized>,
+    to: RouteLocationNormalized,
+    from: RouteLocationNormalized,
+    next: NavigationGuardCallback
+  ): any
+}
+
+export interface NavigationGuardWithThis<T> {
+  (
+    this: T,
+    to: RouteLocationNormalized,
+    from: RouteLocationNormalized,
     next: NavigationGuardCallback
   ): any
 }
 
 export interface PostNavigationGuard {
   (
-    to: Immutable<RouteLocationNormalized>,
-    from: Immutable<RouteLocationNormalized>
+    to: RouteLocationNormalized,
+    from: RouteLocationNormalized,
+    // TODO: move these types to a different file
+    failure?: NavigationFailure | void
   ): any
 }
 
-export * from './type-guards'
+export * from './typeGuards'
 
 export type Mutable<T> = {
   -readonly [P in keyof T]: T[P]

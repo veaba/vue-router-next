@@ -61,10 +61,41 @@
         <a href="/documents/€">/documents/€ (force reload): not valid tho</a>
       </li>
       <li>
-        <router-link to="/">Home (redirects)</router-link>
+        <router-link to="/home">Home (redirects)</router-link>
       </li>
       <li>
-        <router-link to="/home">Home</router-link>
+        <router-link to="/">Home</router-link>
+      </li>
+      <li>
+        <router-link to="/always-redirect">/always-redirect</router-link>
+      </li>
+      <li>
+        <router-link to="/children">/children</router-link>
+      </li>
+      <li>
+        <router-link to="/children/alias">/children/alias</router-link>
+      </li>
+      <li>
+        <router-link :to="{ name: 'default-child' }"
+          >/children (child named)</router-link
+        >
+      </li>
+      <li>
+        <router-link :to="{ name: 'WithChildren' }"
+          >/children (parent named)</router-link
+        >
+      </li>
+      <li>
+        <router-link to="/children/a">/children/a</router-link>
+      </li>
+      <li>
+        <router-link to="/children/b">/children/b</router-link>
+      </li>
+      <li>
+        <router-link to="/children/b/a2">/children/b/a2</router-link>
+      </li>
+      <li>
+        <router-link to="/children/b/b2">/children/b/b2</router-link>
       </li>
       <li>
         <router-link to="/nested">/nested</router-link>
@@ -107,27 +138,47 @@
       <li>
         <router-link to="/rep/a/b">/rep/a/b</router-link>
       </li>
+      <li>
+        <router-link to="/parent/1">/parent/1</router-link>
+      </li>
+      <li>
+        <router-link to="/p/1">/p/1</router-link>
+      </li>
+      <li>
+        <router-link to="/parent/1/as-absolute-a"
+          >/parent/1/as-absolute-a</router-link
+        >
+      </li>
+      <li>
+        <router-link to="/p/1/as-absolute-a">/p/1/as-absolute-a</router-link>
+      </li>
+      <li>
+        <router-link to="/p_1/absolute-a">/p_1/absolute-a</router-link>
+      </li>
     </ul>
-    <!-- <transition
-      name="fade"
-      mode="out-in"
-      @before-enter="flushWaiter"
-      @before-leave="setupWaiter"
-    > -->
+    <button @click="toggleViewName">Toggle view</button>
     <Suspense>
       <template #default>
-        <router-view></router-view>
+        <router-view :name="viewName" v-slot="{ Component, props }">
+          <!-- <transition
+            name="fade"
+            mode="out-in"
+            @before-enter="flushWaiter"
+            @before-leave="setupWaiter"
+          > -->
+          <component v-if="Component" :is="Component" v-bind="props" />
+          <!-- </transition> -->
+        </router-view>
       </template>
       <template #fallback>
         Loading...
       </template>
     </Suspense>
-    <!-- </transition> -->
   </div>
 </template>
 
 <script>
-import { defineComponent, inject, computed } from 'vue'
+import { defineComponent, inject, computed, ref } from 'vue'
 import { scrollWaiter } from './scrollWaiter'
 import { useRoute } from '../src'
 
@@ -136,9 +187,10 @@ export default defineComponent({
   setup() {
     const route = useRoute()
     const state = inject('state')
+    const viewName = ref('default')
 
     const currentLocation = computed(() => {
-      const { matched, ...rest } = route.value
+      const { matched, ...rest } = route
       return rest
     })
 
@@ -159,6 +211,10 @@ export default defineComponent({
       state,
       flushWaiter,
       setupWaiter,
+      viewName,
+      toggleViewName() {
+        viewName.value = viewName.value === 'default' ? 'other' : 'default'
+      },
     }
   },
 })

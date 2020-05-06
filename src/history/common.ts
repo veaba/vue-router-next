@@ -1,5 +1,5 @@
-import { ListenerRemover } from '../types'
-import { LocationQueryRaw, LocationQuery } from '../utils/query'
+import { isBrowser } from '../utils'
+import { removeTrailingSlash } from '../location'
 
 interface HistoryLocation {
   fullPath: string
@@ -8,18 +8,6 @@ interface HistoryLocation {
 
 export type RawHistoryLocation = HistoryLocation | string
 export type HistoryLocationNormalized = Pick<HistoryLocation, 'fullPath'>
-export interface LocationPartial {
-  path: string
-  query?: LocationQueryRaw
-  hash?: string
-}
-export interface LocationNormalized {
-  path: string
-  fullPath: string
-  hash: string
-  query: LocationQuery
-}
-
 // pushState clones the state passed and do not accept everything
 // it doesn't accept symbols, nor functions as values. It also ignores Symbols as keys
 type HistoryStateValue =
@@ -27,6 +15,7 @@ type HistoryStateValue =
   | number
   | boolean
   | null
+  | undefined
   | HistoryState
   | HistoryStateArray
 
@@ -50,7 +39,7 @@ export enum NavigationDirection {
 export interface NavigationInformation {
   type: NavigationType
   direction: NavigationDirection
-  distance: number
+  delta: number
 }
 
 export interface NavigationCallback {
@@ -61,7 +50,9 @@ export interface NavigationCallback {
   ): void
 }
 
-// starting point for abstract history
+/**
+ * Starting location for Histories
+ */
 const START_PATH = ''
 export const START: HistoryLocationNormalized = {
   fullPath: START_PATH,
@@ -69,92 +60,78 @@ export const START: HistoryLocationNormalized = {
 
 export type ValueContainer<T> = { value: T }
 
+/**
+ * Interface implemented by History implementations that can be passed to the
+ * router as {@link Router.history}
+ *
+ * @alpha
+ */
 export interface RouterHistory {
+  /**
+   * Base path that is prepended to every url. This allows hosting an SPA at a
+   * subfolder of a domain like `example.com/subfolder` by having a `base` of
+   * `/subfolder`
+   */
   readonly base: string
+  /**
+   * Current History location
+   */
   readonly location: HistoryLocationNormalized
+  /**
+   * Current History state
+   */
+  readonly state: HistoryState
   // readonly location: ValueContainer<HistoryLocationNormalized>
 
-  push(to: RawHistoryLocation): void
-  replace(to: RawHistoryLocation): void
+  /**
+   * Navigates to a location. In the case of an HTML5 History implementation,
+   * this will call `history.pushState` to effectively change the URL.
+   *
+   * @param to - location to push
+   * @param data - optional {@link HistoryState} to be associated with the
+   * navigation entry
+   */
+  push(to: RawHistoryLocation, data?: HistoryState): void
+  /**
+   * Same as {@link RouterHistory.push} but performs a `history.replaceState`
+   * instead of `history.pushState`
+   *
+   * @param to - location to set
+   * @param data - optional {@link HistoryState} to be associated with the
+   * navigation entry
+   */
+  replace(to: RawHistoryLocation, data?: HistoryState): void
 
-  back(triggerListeners?: boolean): void
-  forward(triggerListeners?: boolean): void
-  go(distance: number, triggerListeners?: boolean): void
+  /**
+   * Traverses history in a given direction.
+   *
+   * @example
+   * ```js
+   * myHistory.go(-1) // equivalent to window.history.back()
+   * myHistory.go(1) // equivalent to window.history.forward()
+   * ```
+   *
+   * @param delta - distance to travel. If delta is \< 0, it will go back,
+   * if it's \> 0, it will go forward by that amount of entries.
+   * @param triggerListeners - whether this should trigger listeners attached to
+   * the history
+   */
+  go(delta: number, triggerListeners?: boolean): void
 
-  listen(callback: NavigationCallback): ListenerRemover
+  /**
+   * Attach a listener to the History implementation that is triggered when the
+   * navigation is triggered from outside (like the Browser back and forward
+   * buttons) or when passing `true` to {@link RouterHistory.back} and
+   * {@link RouterHistory.forward}
+   *
+   * @param callback - listener to attach
+   * @returns a callback to remove the listener
+   */
+  listen(callback: NavigationCallback): () => void
   destroy(): void
 }
 
 // Generic utils
-
-/**
- * Transforms an URI into a normalized history location
- * @param parseQuery
- * @param location URI to normalize
- * @returns a normalized history location
- */
-export function parseURL(
-  parseQuery: (search: string) => LocationQuery,
-  location: string
-): LocationNormalized {
-  let path = '',
-    query: LocationQuery = {},
-    searchString = '',
-    hash = ''
-
-  // Could use URL and URLSearchParams but IE 11 doesn't support it
-  const searchPos = location.indexOf('?')
-  const hashPos = location.indexOf('#', searchPos > -1 ? searchPos : 0)
-
-  if (searchPos > -1) {
-    path = location.slice(0, searchPos)
-    searchString = location.slice(
-      searchPos + 1,
-      hashPos > -1 ? hashPos : location.length
-    )
-
-    query = parseQuery(searchString)
-  }
-
-  if (hashPos > -1) {
-    path = path || location.slice(0, hashPos)
-    // keep the # character
-    hash = location.slice(hashPos, location.length)
-  }
-
-  // no search and no query
-  path = path || location
-
-  return {
-    fullPath: location,
-    path,
-    query,
-    hash,
-  }
-}
-
-/**
- * Stringify a URL object
- * @param stringifyQuery
- * @param location
- */
-export function stringifyURL(
-  stringifyQuery: (query: LocationQueryRaw) => string,
-  location: LocationPartial
-): string {
-  let query: string = location.query ? stringifyQuery(location.query) : ''
-  return location.path + (query && '?') + query + (location.hash || '')
-}
-
-/**
- * Strips off the base from the beginning of a location.pathname
- * @param pathname location.pathname
- * @param base base to strip off
- */
-export function stripBase(pathname: string, base: string): string {
-  if (!base || pathname.indexOf(base) !== 0) return pathname
-  return pathname.replace(base, '') || '/'
-}
 
 export function normalizeHistoryLocation(
   location: RawHistoryLocation
@@ -163,4 +140,33 @@ export function normalizeHistoryLocation(
     // to avoid doing a typeof or in that is quite long
     fullPath: (location as HistoryLocation).fullPath || (location as string),
   }
+}
+
+/**
+ * Normalizes a base by removing any trailing slash and reading the base tag if
+ * present.
+ *
+ * @param base base to normalize
+ */
+export function normalizeBase(base?: string): string {
+  if (!base) {
+    if (isBrowser) {
+      // respect <base> tag
+      const baseEl = document.querySelector('base')
+      base = (baseEl && baseEl.getAttribute('href')) || '/'
+      // strip full URL origin
+      base = base.replace(/^\w+:\/\/[^\/]+/, '')
+    } else {
+      base = '/'
+    }
+  }
+
+  // ensure leading slash when it was removed by the regex above avoid leading
+  // slash with hash because the file could be read from the disk like file://
+  // and the leading slash would cause problems
+  if (base[0] !== '/' && base[0] !== '#') base = '/' + base
+
+  // remove the trailing slash so all other method can just do `base + fullPath`
+  // to build an href
+  return removeTrailingSlash(base)
 }

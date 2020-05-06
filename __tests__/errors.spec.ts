@@ -1,27 +1,17 @@
+import fakePromise from 'faked-promise'
 import { createRouter as newRouter, createMemoryHistory } from '../src'
-import { ErrorTypes } from '../src/errors'
+import { NavigationFailure, NavigationFailureType } from '../src/errors'
 import { components, tick } from './utils'
-import { RouteRecord } from '../src/types'
+import { RouteRecordRaw, NavigationGuard, RouteLocationRaw } from '../src/types'
 
-const routes: RouteRecord[] = [
+const routes: RouteRecordRaw[] = [
   { path: '/', component: components.Home },
+  { path: '/redirect', redirect: '/' },
   { path: '/foo', component: components.Foo, name: 'Foo' },
-  { path: '/to-foo', redirect: '/foo' },
-  { path: '/to-foo-named', redirect: { name: 'Foo' } },
-  { path: '/to-foo2', redirect: '/to-foo' },
-  { path: '/p/:p', name: 'Param', component: components.Bar },
-  { path: '/to-p/:p', redirect: to => `/p/${to.params.p}` },
-  {
-    path: '/inc-query-hash',
-    redirect: to => ({
-      name: 'Foo',
-      query: { n: to.query.n + '-2' },
-      hash: to.hash + '-2',
-    }),
-  },
 ]
 
 const onError = jest.fn()
+const afterEach = jest.fn()
 function createRouter() {
   const history = createMemoryHistory()
   const router = newRouter({
@@ -30,58 +20,322 @@ function createRouter() {
   })
 
   router.onError(onError)
+  router.afterEach(afterEach)
   return { router, history }
 }
 
-describe('Errors', () => {
+describe('Errors & Navigation failures', () => {
   beforeEach(() => {
     onError.mockReset()
+    afterEach.mockReset()
   })
 
-  it('triggers onError when navigation is aborted', async () => {
+  it('next(false) triggers afterEach', async () => {
+    await testNavigation(
+      false,
+      expect.objectContaining({
+        type: NavigationFailureType.aborted,
+      })
+    )
+  })
+
+  it('Duplicated navigation triggers afterEach', async () => {
+    let expectedFailure = expect.objectContaining({
+      type: NavigationFailureType.duplicated,
+      to: expect.objectContaining({ path: '/' }),
+      from: expect.objectContaining({ path: '/' }),
+    })
+
     const { router } = createRouter()
-    router.beforeEach((to, from, next) => {
-      next(false)
-    })
 
-    try {
-      await router.push('/foo')
-    } catch (err) {
-      expect(err.type).toBe(ErrorTypes.NAVIGATION_ABORTED)
-    }
-    expect(onError).toHaveBeenCalledWith(
-      expect.objectContaining({ type: ErrorTypes.NAVIGATION_ABORTED })
+    await expect(router.push('/')).resolves.toEqual(undefined)
+    expect(afterEach).toHaveBeenCalledTimes(1)
+    expect(onError).toHaveBeenCalledTimes(0)
+
+    await expect(router.push('/')).resolves.toEqual(expectedFailure)
+    expect(afterEach).toHaveBeenCalledTimes(2)
+    expect(onError).toHaveBeenCalledTimes(0)
+
+    expect(afterEach).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.any(Object),
+      expectedFailure
     )
   })
 
-  it('triggers erros caused by new navigations of a next(redirect) trigered by history', async () => {
-    const { router, history } = createRouter()
-    await router.push('/p/0')
-    await router.push('/p/other')
+  it('next("/location") triggers afterEach', async () => {
+    await testNavigation(
+      ((to, from, next) => {
+        if (to.path === '/location') next()
+        else next('/location')
+      }) as NavigationGuard,
+      undefined
+    )
+  })
 
+  it('redirect triggers afterEach', async () => {
+    await testNavigation(undefined, undefined, '/redirect')
+  })
+
+  it('next() triggers afterEach', async () => {
+    await testNavigation(undefined, undefined)
+  })
+
+  it('next(true) triggers afterEach', async () => {
+    await testNavigation(true, undefined)
+  })
+
+  it('triggers afterEach if a new navigation happens', async () => {
+    const { router } = createRouter()
+    const [promise, resolve] = fakePromise()
     router.beforeEach((to, from, next) => {
-      const p = (Number(to.params.p) || 0) + 1
-      if (p === 2) next(false)
-      else next({ name: 'Param', params: { p: '' + p } })
+      // let it hang otherwise
+      if (to.path === '/') next()
+      else promise.then(() => next())
     })
 
-    history.back()
-    await tick()
+    let from = router.currentRoute.value
 
-    expect(onError).toHaveBeenCalledTimes(2)
-    expect(onError).toHaveBeenNthCalledWith(
-      1,
-      expect.objectContaining({ type: ErrorTypes.NAVIGATION_GUARD_REDIRECT })
+    // should hang
+    let navigationPromise = router.push('/foo')
+
+    await expect(router.push('/')).resolves.toEqual(undefined)
+    expect(afterEach).toHaveBeenCalledTimes(1)
+    expect(onError).toHaveBeenCalledTimes(0)
+
+    resolve()
+    await navigationPromise
+    expect(afterEach).toHaveBeenCalledTimes(2)
+    expect(onError).toHaveBeenCalledTimes(0)
+
+    expect(afterEach).toHaveBeenLastCalledWith(
+      expect.objectContaining({ path: '/foo' }),
+      from,
+      expect.objectContaining({ type: NavigationFailureType.cancelled })
     )
-    expect(onError.mock.calls[0]).toMatchObject([
-      { to: { params: { p: '1' } }, from: { fullPath: '/p/0' } },
-    ])
-    expect(onError).toHaveBeenNthCalledWith(
-      2,
-      expect.objectContaining({ type: ErrorTypes.NAVIGATION_ABORTED })
-    )
-    expect(onError.mock.calls[1]).toMatchObject([
-      { to: { params: { p: '1' } }, from: { params: { p: 'other' } } },
-    ])
+  })
+
+  it('next(new Error()) triggers onError', async () => {
+    let error = new Error()
+    await testError(error, error)
+  })
+
+  it('triggers onError with thrown errors', async () => {
+    let error = new Error()
+    await testError(() => {
+      throw error
+    }, error)
+  })
+
+  it('triggers onError with rejected promises', async () => {
+    let error = new Error()
+    await testError(async () => {
+      throw error
+    }, error)
+  })
+
+  describe('history navigation', () => {
+    it('triggers afterEach with history.back', async () => {
+      const { router, history } = createRouter()
+
+      await router.push('/')
+      await router.push('/foo')
+
+      afterEach.mockReset()
+      onError.mockReset()
+
+      const [promise, resolve] = fakePromise()
+      router.beforeEach((to, from, next) => {
+        // let it hang otherwise
+        if (to.path === '/') next()
+        else promise.then(() => next())
+      })
+
+      let from = router.currentRoute.value
+
+      // should hang
+      let navigationPromise = router.push('/bar')
+
+      // goes from /foo to /
+      history.go(-1)
+
+      await tick()
+
+      expect(afterEach).toHaveBeenCalledTimes(1)
+      expect(onError).toHaveBeenCalledTimes(0)
+      expect(afterEach).toHaveBeenLastCalledWith(
+        expect.objectContaining({ path: '/' }),
+        from,
+        undefined
+      )
+
+      resolve()
+      await expect(navigationPromise).resolves.toEqual(
+        expect.objectContaining({ type: NavigationFailureType.cancelled })
+      )
+
+      expect(afterEach).toHaveBeenCalledTimes(2)
+      expect(onError).toHaveBeenCalledTimes(0)
+
+      expect(afterEach).toHaveBeenLastCalledWith(
+        expect.objectContaining({ path: '/bar' }),
+        from,
+        expect.objectContaining({ type: NavigationFailureType.cancelled })
+      )
+    })
+
+    it('next(false) triggers afterEach with history.back', async () => {
+      await testHistoryNavigation(
+        false,
+        expect.objectContaining({ type: NavigationFailureType.aborted })
+      )
+    })
+
+    it('next("/location") triggers afterEach with history.back', async () => {
+      await testHistoryNavigation(
+        ((to, from, next) => {
+          if (to.path === '/location') next()
+          else next('/location')
+        }) as NavigationGuard,
+        undefined
+      )
+    })
+
+    it('next() triggers afterEach with history.back', async () => {
+      await testHistoryNavigation(undefined, undefined)
+    })
+
+    it('next(true) triggers afterEach with history.back', async () => {
+      await testHistoryNavigation(true, undefined)
+    })
+
+    it('next(new Error()) triggers onError with history.back', async () => {
+      let error = new Error()
+      await testHistoryError(error, error)
+    })
+
+    it('triggers onError with thrown errors with history.back', async () => {
+      let error = new Error()
+      await testHistoryError(() => {
+        throw error
+      }, error)
+    })
+
+    it('triggers onError with rejected promises with history.back', async () => {
+      let error = new Error()
+      await testHistoryError(async () => {
+        throw error
+      }, error)
+    })
   })
 })
+
+async function testError(
+  nextArgument: any | NavigationGuard,
+  expectedError: Error | void = undefined,
+  to: RouteLocationRaw = '/foo'
+) {
+  const { router } = createRouter()
+  router.beforeEach(
+    typeof nextArgument === 'function'
+      ? nextArgument
+      : (to, from, next) => {
+          next(nextArgument)
+        }
+  )
+
+  await expect(router.push(to)).rejects.toEqual(expectedError)
+
+  expect(afterEach).toHaveBeenCalledTimes(0)
+  expect(onError).toHaveBeenCalledTimes(1)
+
+  expect(onError).toHaveBeenCalledWith(expectedError)
+}
+
+async function testNavigation(
+  nextArgument: any | NavigationGuard,
+  expectedFailure: NavigationFailure | void = undefined,
+  to: RouteLocationRaw = '/foo'
+) {
+  const { router } = createRouter()
+  router.beforeEach(
+    typeof nextArgument === 'function'
+      ? nextArgument
+      : (to, from, next) => {
+          next(nextArgument)
+        }
+  )
+
+  await expect(router.push(to)).resolves.toEqual(expectedFailure)
+
+  expect(afterEach).toHaveBeenCalledTimes(1)
+  expect(onError).toHaveBeenCalledTimes(0)
+
+  expect(afterEach).toHaveBeenCalledWith(
+    expect.any(Object),
+    expect.any(Object),
+    expectedFailure
+  )
+}
+
+async function testHistoryNavigation(
+  nextArgument: any | NavigationGuard,
+  expectedFailure: NavigationFailure | void = undefined,
+  to: RouteLocationRaw = '/foo'
+) {
+  const { router, history } = createRouter()
+  await router.push(to)
+
+  router.beforeEach(
+    typeof nextArgument === 'function'
+      ? nextArgument
+      : (to, from, next) => {
+          next(nextArgument)
+        }
+  )
+
+  afterEach.mockReset()
+  onError.mockReset()
+
+  history.go(-1)
+
+  await tick()
+
+  expect(afterEach).toHaveBeenCalledTimes(1)
+  expect(onError).toHaveBeenCalledTimes(0)
+
+  expect(afterEach).toHaveBeenCalledWith(
+    expect.any(Object),
+    expect.any(Object),
+    expectedFailure
+  )
+}
+
+async function testHistoryError(
+  nextArgument: any | NavigationGuard,
+  expectedError: Error | void = undefined,
+  to: RouteLocationRaw = '/foo'
+) {
+  const { router, history } = createRouter()
+  await router.push(to)
+
+  router.beforeEach(
+    typeof nextArgument === 'function'
+      ? nextArgument
+      : (to, from, next) => {
+          next(nextArgument)
+        }
+  )
+
+  afterEach.mockReset()
+  onError.mockReset()
+
+  history.go(-1)
+
+  await tick()
+
+  expect(afterEach).toHaveBeenCalledTimes(0)
+  expect(onError).toHaveBeenCalledTimes(1)
+
+  expect(onError).toHaveBeenCalledWith(expectedError)
+}

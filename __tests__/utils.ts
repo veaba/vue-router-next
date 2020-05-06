@@ -2,12 +2,21 @@ import { JSDOM, ConstructorOptions } from 'jsdom'
 import {
   NavigationGuard,
   RouteRecordMultipleViews,
-  MatcherLocationNormalized,
+  MatcherLocation,
   RouteLocationNormalized,
-  RouteRecordCommon,
+  _RouteRecordBase,
   RouteComponent,
+  RouteRecordRaw,
+  RouteRecordName,
 } from '../src/types'
-import { h, resolveComponent, ComponentOptions } from 'vue'
+import { h, ComponentOptions } from 'vue'
+import {
+  RouterOptions,
+  createWebHistory,
+  createRouter,
+  Router,
+  RouterView,
+} from '../src'
 
 export const tick = (time?: number) =>
   new Promise(resolve => {
@@ -21,8 +30,20 @@ export async function ticks(n: number) {
   }
 }
 
-export type NAVIGATION_METHOD = 'push' | 'replace'
-export const NAVIGATION_TYPES: NAVIGATION_METHOD[] = ['push', 'replace']
+export function nextNavigation(router: Router) {
+  return new Promise((resolve, reject) => {
+    let removeAfter = router.afterEach((_to, _from, failure) => {
+      removeAfter()
+      removeError()
+      resolve(failure)
+    })
+    let removeError = router.onError(err => {
+      removeAfter()
+      removeError()
+      reject(err)
+    })
+  })
+}
 
 export interface RouteRecordViewLoose
   extends Pick<
@@ -31,17 +52,17 @@ export interface RouteRecordViewLoose
   > {
   leaveGuards?: any
   instances: Record<string, any>
-  props?: RouteRecordCommon['props']
+  props?: _RouteRecordBase['props']
   aliasOf: RouteRecordViewLoose | undefined
 }
 
 // @ts-ignore we are intentionally overriding the type
 export interface RouteLocationNormalizedLoose extends RouteLocationNormalized {
-  name: string | undefined
+  name: RouteRecordName | null | undefined
   path: string
   // record?
   params: any
-  redirectedFrom?: Partial<MatcherLocationNormalized>
+  redirectedFrom?: Partial<MatcherLocation>
   meta: any
   matched: Partial<RouteRecordViewLoose>[]
 }
@@ -51,7 +72,7 @@ export interface MatcherLocationNormalizedLoose {
   path: string
   // record?
   params: any
-  redirectedFrom?: Partial<MatcherLocationNormalized>
+  redirectedFrom?: Partial<MatcherLocation>
   meta: any
   matched: Partial<RouteRecordViewLoose>[]
   instances: Record<string, any>
@@ -62,6 +83,7 @@ declare global {
     interface Global {
       window: JSDOM['window']
       location: JSDOM['window']['location']
+      history: JSDOM['window']['history']
       document: JSDOM['window']['document']
       before?: Function
     }
@@ -81,6 +103,7 @@ export function createDom(options?: ConstructorOptions) {
 
   global.window = dom.window
   global.location = dom.window.location
+  global.history = dom.window.history
   global.document = dom.window.document
 
   return dom
@@ -101,7 +124,6 @@ export const components = {
       },
     },
     render() {
-      // @ts-ignore
       return h('div', {}, 'User: ' + this.id)
     },
   } as ComponentOptions,
@@ -115,17 +137,30 @@ export const components = {
       },
     },
     render() {
-      // @ts-ignore
       return h('div', {}, `id:${this.id};other:${this.other}`)
     },
   } as RouteComponent,
   Nested: {
     render: () => {
-      const RouterView = resolveComponent('RouterView')
       return h('div', {}, [
         h('h2', {}, 'Nested'),
-        RouterView ? h(RouterView as any) : [],
+        RouterView ? h(RouterView) : [],
       ])
     },
   },
+  BeforeLeave: {
+    render: () => h('div', {}, 'before leave'),
+    beforeRouteLeave(to, from, next) {
+      next()
+    },
+  } as RouteComponent,
+}
+
+export function newRouter(
+  options: Partial<RouterOptions> & { routes: RouteRecordRaw[] }
+) {
+  return createRouter({
+    history: options.history || createWebHistory(),
+    ...options,
+  })
 }

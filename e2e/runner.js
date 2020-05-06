@@ -12,7 +12,8 @@
  *
  * If you are already running the dev server with `yarn run serve`, you can pass the --dev option to avoid launching the server
  * $ node e2e/runner.js --dev
- * **Make sure to pass the option at the end**
+ * **Make sure to pass the option at the end:**
+ * $ node e2e/runner.js e2e/specs/basic.js --dev
  *
  * __For maintainers only__
  * You can trigger tests on Browserstack on other browsers by passing the --local option
@@ -26,7 +27,12 @@ const Nightwatch = require('nightwatch')
 const args = process.argv.slice(2)
 
 // if we are running yarn dev locally, we can pass --dev to avoid launching another server instance
-const server = args.indexOf('--dev') > -1 ? null : require('./server')
+const server =
+  args.indexOf('--dev') > -1
+    ? null
+    : // : process.env.CI || args.indexOf('--ci') > -1
+      // ? require('./staticServer')
+      require('./devServer')
 
 // allow running browserstack local
 const isLocal = args.indexOf('--local') > -1
@@ -36,10 +42,10 @@ const NW_CONFIG = isLocal
   ? resolve(__dirname, './nightwatch.browserstack.js')
   : resolve(__dirname, './nightwatch.config.js')
 
-// check -c option is passed when usig multiple environments
+// check -c option is passed when using multiple environments
 if (args.indexOf('-c') < 0) {
   // check if multiple envs are provided. The way Nightwatch works
-  // requires to explicitely provide the conf
+  // requires to explicitly provide the conf
   const envs = args[args.indexOf('-e') + 1]
   if (envs && envs.indexOf(',') > -1) {
     console.warn(
