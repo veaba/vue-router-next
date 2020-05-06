@@ -1,11 +1,12 @@
 import { createRouterMatcher } from '../../src/matcher'
-import { MatcherLocationNormalized } from '../../src/types'
+import { MatcherLocation } from '../../src/types'
+import { mockWarn } from 'jest-mock-warn'
 
-const currentLocation = { path: '/' } as MatcherLocationNormalized
+const currentLocation = { path: '/' } as MatcherLocation
 // @ts-ignore
 const component: RouteComponent = null
 
-describe('normalizeRouteRecord', () => {
+describe('Matcher: adding and removing records', () => {
   it('can add records', () => {
     const matcher = createRouterMatcher([], {})
     matcher.addRoute({ path: '/', component, name: 'home' })
@@ -349,5 +350,15 @@ describe('normalizeRouteRecord', () => {
     })
 
     expect(matcher.getRecordMatcher('child')).toBe(undefined)
+  })
+
+  describe('warnings', () => {
+    mockWarn()
+
+    // TODO: add warnings for invalid records
+    it.skip('warns if alias is missing a required param', () => {
+      createRouterMatcher([{ path: '/:id', alias: '/no-id', component }], {})
+      expect('TODO').toHaveBeenWarned()
+    })
   })
 })

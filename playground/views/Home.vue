@@ -2,7 +2,9 @@
   <div>
     <div>Home</div>
     <p>My Data is: {{ someData }}</p>
+    <p v-if="waited != null">I waited for {{ waited }}</p>
     toggle: {{ log(toggle) }}
+    <button @click="counter++">{{ counter }}</button>
   </div>
 </template>
 
@@ -12,8 +14,10 @@ import { defineComponent, getCurrentInstance, inject, ref } from 'vue'
 
 export default defineComponent({
   name: 'Home',
+  props: ['waited'],
   data: () => ({
     toggle: false,
+    counter: 0,
   }),
 
   setup() {

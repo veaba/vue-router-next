@@ -1,45 +1,61 @@
 /**
  * @jest-environment jsdom
  */
-import { Link as RouterLink } from '../src/components/Link'
+import { RouterLink } from '../src/RouterLink'
 import {
   START_LOCATION_NORMALIZED,
   RouteQueryAndHash,
-  MatcherLocation,
+  MatcherLocationRaw,
   RouteLocationNormalized,
 } from '../src/types'
-import { createMemoryHistory } from '../src'
-import { mount, tick } from './mount'
-import { ref, markNonReactive } from 'vue'
+import { createMemoryHistory, RouterOptions } from '../src'
+import { mount, createMockedRoute } from './mount'
+import { nextTick } from 'vue'
 import { RouteRecordNormalized } from '../src/matcher/types'
+import { routerKey } from '../src/injectionSymbols'
 
 const records = {
   home: {} as RouteRecordNormalized,
   homeAlias: {} as RouteRecordNormalized,
   foo: {} as RouteRecordNormalized,
   parent: {} as RouteRecordNormalized,
+  childEmpty: {} as RouteRecordNormalized,
+  childEmptyAlias: {} as RouteRecordNormalized,
   child: {} as RouteRecordNormalized,
+  childChild: {} as RouteRecordNormalized,
   parentAlias: {} as RouteRecordNormalized,
   childAlias: {} as RouteRecordNormalized,
 }
 
 // fix the aliasOf
 records.homeAlias = { aliasOf: records.home } as RouteRecordNormalized
-records.parentAlias = { aliasOf: records.parent } as RouteRecordNormalized
+records.parentAlias = {
+  aliasOf: records.parent,
+} as RouteRecordNormalized
 records.childAlias = { aliasOf: records.child } as RouteRecordNormalized
+records.childEmptyAlias.aliasOf = records.childEmpty
 
-const locations: Record<
-  string,
-  {
-    string: string
-    normalized: RouteLocationNormalized
-    toResolve?: MatcherLocation & Required<RouteQueryAndHash>
-  }
-> = {
+type RouteLocationResolved = RouteLocationNormalized & { href: string }
+
+function createLocations<
+  T extends Record<
+    string,
+    {
+      string: string
+      normalized: RouteLocationResolved
+      toResolve?: MatcherLocationRaw & Required<RouteQueryAndHash>
+    }
+  >
+>(locs: T) {
+  return locs
+}
+
+const locations = createLocations({
   basic: {
     string: '/home',
     // toResolve: { path: '/home', fullPath: '/home', undefined, query: {}, hash: '' },
     normalized: {
+      href: '/home',
       fullPath: '/home',
       path: '/home',
       params: {},
@@ -48,7 +64,7 @@ const locations: Record<
       hash: '',
       matched: [records.home],
       redirectedFrom: undefined,
-      name: undefined,
+      name: 'home',
     },
   },
   foo: {
@@ -56,6 +72,7 @@ const locations: Record<
     // toResolve: { path: '/home', fullPath: '/home', undefined, query: {}, hash: '' },
     normalized: {
       fullPath: '/foo',
+      href: '/foo',
       path: '/foo',
       params: {},
       meta: {},
@@ -71,6 +88,7 @@ const locations: Record<
     // toResolve: { path: '/home', fullPath: '/home', undefined, query: {}, hash: '' },
     normalized: {
       fullPath: '/home?foo=a&bar=b',
+      href: '/home?foo=a&bar=b',
       path: '/home',
       params: {},
       meta: {},
@@ -85,6 +103,7 @@ const locations: Record<
     string: '/p/1/2',
     normalized: {
       fullPath: '/p/1/2',
+      href: '/p/1/2',
       path: '/p/1/2',
       params: { p: ['1', '2'] },
       meta: {},
@@ -99,6 +118,7 @@ const locations: Record<
     string: '/p/1/2/3',
     normalized: {
       fullPath: '/p/1/2/3',
+      href: '/p/1/2/3',
       path: '/p/1/2/3',
       params: { p: ['1', '2', '3'] },
       meta: {},
@@ -113,6 +133,7 @@ const locations: Record<
     string: '/alias',
     normalized: {
       fullPath: '/alias',
+      href: '/alias',
       path: '/alias',
       params: {},
       meta: {},
@@ -120,7 +141,7 @@ const locations: Record<
       hash: '',
       matched: [records.homeAlias],
       redirectedFrom: undefined,
-      name: undefined,
+      name: 'home',
     },
   },
 
@@ -129,6 +150,7 @@ const locations: Record<
     string: '/parent',
     normalized: {
       fullPath: '/parent',
+      href: '/parent',
       path: '/parent',
       params: {},
       meta: {},
@@ -143,6 +165,7 @@ const locations: Record<
     string: '/p',
     normalized: {
       fullPath: '/p',
+      href: '/p',
       path: '/p',
       params: {},
       meta: {},
@@ -154,11 +177,72 @@ const locations: Record<
     },
   },
 
+  childEmpty: {
+    string: '/parent',
+    normalized: {
+      fullPath: '/parent',
+      href: '/parent',
+      path: '/parent',
+      params: {},
+      meta: {},
+      query: {},
+      hash: '',
+      matched: [records.parent, records.childEmpty],
+      redirectedFrom: undefined,
+      name: undefined,
+    },
+  },
+  childEmptyAlias: {
+    string: '/parent/alias',
+    normalized: {
+      fullPath: '/parent/alias',
+      href: '/parent/alias',
+      path: '/parent/alias',
+      params: {},
+      meta: {},
+      query: {},
+      hash: '',
+      matched: [records.parent, records.childEmptyAlias],
+      redirectedFrom: undefined,
+      name: undefined,
+    },
+  },
   child: {
     string: '/parent/child',
     normalized: {
       fullPath: '/parent/child',
+      href: '/parent/child',
       path: '/parent/child',
+      params: {},
+      meta: {},
+      query: {},
+      hash: '',
+      matched: [records.parent, records.child],
+      redirectedFrom: undefined,
+      name: undefined,
+    },
+  },
+  childChild: {
+    string: '/parent/child/child',
+    normalized: {
+      fullPath: '/parent/child/child',
+      href: '/parent/child/child',
+      path: '/parent/child/child',
+      params: {},
+      meta: {},
+      query: {},
+      hash: '',
+      matched: [records.parent, records.child, records.childChild],
+      redirectedFrom: undefined,
+      name: undefined,
+    },
+  },
+  childAsAbsolute: {
+    string: '/absolute-child',
+    normalized: {
+      fullPath: '/absolute-child',
+      href: '/absolute-child',
+      path: '/absolute-child',
       params: {},
       meta: {},
       query: {},
@@ -172,6 +256,7 @@ const locations: Record<
     string: '/p/child',
     normalized: {
       fullPath: '/p/child',
+      href: '/p/child',
       path: '/p/child',
       params: {},
       meta: {},
@@ -186,6 +271,7 @@ const locations: Record<
     string: '/parent/c',
     normalized: {
       fullPath: '/parent/c',
+      href: '/parent/c',
       path: '/parent/c',
       params: {},
       meta: {},
@@ -200,6 +286,7 @@ const locations: Record<
     string: '/p/c',
     normalized: {
       fullPath: '/p/c',
+      href: '/p/c',
       path: '/p/c',
       params: {},
       meta: {},
@@ -210,243 +297,426 @@ const locations: Record<
       name: undefined,
     },
   },
+  notFound: {
+    string: '/not-found',
+    normalized: {
+      fullPath: '/not-found',
+      href: '/not-found',
+      path: '/not-found',
+      params: {},
+      meta: {},
+      query: {},
+      hash: '',
+      matched: [],
+      redirectedFrom: undefined,
+      name: undefined,
+    },
+  },
+})
+
+// add paths to records because they are used to check isActive
+for (let record in records) {
+  let location = locations[record as keyof typeof locations]
+  if (location) {
+    records[record as keyof typeof records].path = location.normalized.path
+  }
+}
+
+async function factory(
+  currentLocation: RouteLocationNormalized,
+  propsData: any,
+  resolvedLocation: RouteLocationResolved,
+  slotTemplate: string = ''
+) {
+  const route = createMockedRoute(currentLocation)
+  const router = {
+    history: createMemoryHistory(),
+    createHref(to: RouteLocationNormalized): string {
+      return this.history.base + to.fullPath
+    },
+    options: {} as Partial<RouterOptions>,
+    resolve: jest.fn(),
+    push: jest.fn().mockResolvedValue(resolvedLocation),
+  }
+  router.resolve.mockReturnValueOnce(resolvedLocation)
+
+  const wrapper = await mount(RouterLink, {
+    propsData,
+    provide: {
+      [routerKey as any]: router,
+      ...route.provides,
+    },
+    slots: { default: slotTemplate },
+  })
+
+  return { router, wrapper, route }
 }
 
 describe('RouterLink', () => {
-  function factory(
-    currentLocation: RouteLocationNormalized,
-    propsData: any,
-    resolvedLocation: RouteLocationNormalized,
-    template: string = `<RouterLink :to="to">a link</RouterLink>`
-  ) {
-    const router = {
-      history: createMemoryHistory(),
-      createHref(to: RouteLocationNormalized): string {
-        return this.history.base + to.fullPath
-      },
-      resolve: jest.fn(),
-      push: jest.fn().mockResolvedValue(resolvedLocation),
-      currentRoute: ref(markNonReactive(currentLocation)),
-      setActiveApp: jest.fn(),
-    }
-
-    router.resolve.mockReturnValueOnce(resolvedLocation)
-    const { app, el } = mount(router as any, {
-      template,
-      components: { RouterLink } as any,
-      setup() {
-        return { to: propsData.to }
-      },
-    })
-
-    return { app, router, el }
-  }
-
-  it('displays a link with a string prop', () => {
-    const { el } = factory(
+  it('displays a link with a string prop', async () => {
+    const { wrapper } = await factory(
       START_LOCATION_NORMALIZED,
       { to: locations.basic.string },
       locations.basic.normalized
     )
-    expect(el.querySelector('a')!.getAttribute('href')).toBe('/home')
+    expect(wrapper.find('a')!.getAttribute('href')).toBe('/home')
+  })
+
+  it('displays a link with a string prop', async () => {
+    const { wrapper } = await factory(
+      START_LOCATION_NORMALIZED,
+      { to: locations.basic.string },
+      locations.basic.normalized
+    )
+    expect(wrapper.find('a')!.getAttribute('href')).toBe('/home')
   })
 
   it('can change the value', async () => {
-    const to = ref(locations.basic.string)
-    const { el, router } = factory(
+    const { wrapper, router } = await factory(
       START_LOCATION_NORMALIZED,
-      { to },
+      { to: locations.basic.string },
       locations.basic.normalized
     )
-    expect(el.querySelector('a')!.getAttribute('href')).toBe('/home')
+    expect(wrapper.find('a')!.getAttribute('href')).toBe('/home')
     router.resolve.mockReturnValueOnce(locations.foo.normalized)
-    to.value = locations.foo.string
-    await tick()
-    expect(el.querySelector('a')!.getAttribute('href')).toBe('/foo')
+    await wrapper.setProps({ to: locations.foo.string })
+    expect(wrapper.find('a')!.getAttribute('href')).toBe('/foo')
   })
 
-  it('displays a link with an object with path prop', () => {
-    const { el } = factory(
+  it('displays a link with an object with path prop', async () => {
+    const { wrapper } = await factory(
       START_LOCATION_NORMALIZED,
       { to: { path: locations.basic.string } },
       locations.basic.normalized
     )
-    expect(el.querySelector('a')!.getAttribute('href')).toBe('/home')
+    expect(wrapper.find('a')!.getAttribute('href')).toBe('/home')
   })
 
-  it('can be active', () => {
-    const { el } = factory(
+  it('can be active', async () => {
+    const { wrapper } = await factory(
       locations.basic.normalized,
       { to: locations.basic.string },
       locations.basic.normalized
     )
-    expect(el.querySelector('a')!.className).toContain('router-link-active')
+    expect(wrapper.find('a')!.className).toContain('router-link-active')
   })
 
-  it('can be active with custom class', () => {
-    const { el } = factory(
+  it('can customize active class', async () => {
+    const { wrapper } = await factory(
       locations.basic.normalized,
-      { to: locations.basic.string },
-      locations.basic.normalized,
-      `<RouterLink class="nav-item" :to="to">a link</RouterLink>`
+      { to: locations.basic.string, activeClass: 'is-active' },
+      locations.basic.normalized
     )
-    expect(el.querySelector('a')!.className).toContain('router-link-active')
-    expect(el.querySelector('a')!.className).toContain('nav-item')
+    expect(wrapper.find('a')!.className).not.toContain('router-link-active')
+    expect(wrapper.find('a')!.className).toContain('is-active')
   })
 
-  it('is not active with more repeated params', () => {
-    const { el } = factory(
+  it('prop classes take over global', async () => {
+    const { wrapper, router } = await factory(
+      locations.basic.normalized,
+      // wrong location to set it later
+      {
+        to: locations.foo.string,
+        activeClass: 'is-active',
+        exactActiveClass: 'is-exact',
+      },
+      locations.foo.normalized
+    )
+    router.options.linkActiveClass = 'custom'
+    router.options.linkExactActiveClass = 'custom-exact'
+    // force render because options is not reactive
+    router.resolve.mockReturnValueOnce(locations.basic.normalized)
+    await wrapper.setProps({ to: locations.basic.string })
+    expect(wrapper.find('a')!.className).not.toContain('router-link-active')
+    expect(wrapper.find('a')!.className).not.toContain(
+      'router-link-exact-active'
+    )
+    expect(wrapper.find('a')!.className).not.toContain('custom')
+    expect(wrapper.find('a')!.className).not.toContain('custom-exact')
+    expect(wrapper.find('a')!.className).toContain('is-active')
+    expect(wrapper.find('a')!.className).toContain('is-exact')
+  })
+
+  it('can globally customize active class', async () => {
+    const { wrapper, router } = await factory(
+      locations.basic.normalized,
+      // wrong location to set it later
+      { to: locations.foo.string },
+      locations.foo.normalized
+    )
+    router.options.linkActiveClass = 'custom'
+    // force render because options is not reactive
+    router.resolve.mockReturnValueOnce(locations.basic.normalized)
+    await wrapper.setProps({ to: locations.basic.string })
+    expect(wrapper.find('a')!.className).not.toContain('router-link-active')
+    expect(wrapper.find('a')!.className).toContain('custom')
+  })
+
+  it('can globally customize exact active class', async () => {
+    const { wrapper, router } = await factory(
+      locations.basic.normalized,
+      // wrong location to set it later
+      { to: locations.foo.string },
+      locations.foo.normalized
+    )
+    router.options.linkExactActiveClass = 'custom'
+    // force render because options is not reactive
+    router.resolve.mockReturnValueOnce(locations.basic.normalized)
+    await wrapper.setProps({ to: locations.basic.string })
+    expect(wrapper.find('a')!.className).not.toContain(
+      'router-link-exact-active'
+    )
+    expect(wrapper.find('a')!.className).toContain('custom')
+  })
+
+  it('can customize exact active class', async () => {
+    const { wrapper } = await factory(
+      locations.basic.normalized,
+      { to: locations.basic.string, exactActiveClass: 'is-active' },
+      locations.basic.normalized
+    )
+    expect(wrapper.find('a')!.className).not.toContain(
+      'router-link-exact-active'
+    )
+    expect(wrapper.find('a')!.className).toContain('is-active')
+  })
+
+  it('can be active with custom class', async () => {
+    const { wrapper } = await factory(
+      locations.basic.normalized,
+      { to: locations.basic.string, class: 'nav-item' },
+      locations.basic.normalized
+    )
+    expect(wrapper.find('a')!.className).toContain('router-link-active')
+    expect(wrapper.find('a')!.className).toContain('nav-item')
+  })
+
+  it('is not active on a non matched location', async () => {
+    const { wrapper } = await factory(
+      locations.notFound.normalized,
+      { to: locations.basic.string },
+      locations.basic.normalized
+    )
+    expect(wrapper.find('a')!.className).toBe('')
+  })
+
+  it('is not active with more repeated params', async () => {
+    const { wrapper } = await factory(
       locations.repeatedParams2.normalized,
       { to: locations.repeatedParams3.string },
       locations.repeatedParams3.normalized
     )
-    expect(el.querySelector('a')!.className).toBe('')
+    expect(wrapper.find('a')!.className).toBe('')
   })
 
-  it('is not active with partial repeated params', () => {
-    const { el } = factory(
+  it('is not active with partial repeated params', async () => {
+    const { wrapper } = await factory(
       locations.repeatedParams3.normalized,
       { to: locations.repeatedParams2.string },
       locations.repeatedParams2.normalized
     )
-    expect(el.querySelector('a')!.className).toBe('')
+    expect(wrapper.find('a')!.className).toBe('')
   })
 
-  it('can be active as an alias', () => {
-    let { el } = factory(
+  it('can be active as an alias', async () => {
+    let { wrapper } = await factory(
       locations.basic.normalized,
       { to: locations.alias.string },
       locations.alias.normalized
     )
-    expect(el.querySelector('a')!.className).toContain('router-link-active')
-    expect(el.querySelector('a')!.className).toContain(
-      'router-link-exact-active'
-    )
-    el = factory(
-      locations.alias.normalized,
-      { to: locations.basic.string },
-      locations.basic.normalized
-    ).el
-    expect(el.querySelector('a')!.className).toContain('router-link-active')
-    expect(el.querySelector('a')!.className).toContain(
-      'router-link-exact-active'
-    )
+    expect(wrapper.find('a')!.className).toContain('router-link-active')
+    expect(wrapper.find('a')!.className).toContain('router-link-exact-active')
+    wrapper = (
+      await factory(
+        locations.alias.normalized,
+        { to: locations.basic.string },
+        locations.basic.normalized
+      )
+    ).wrapper
+    expect(wrapper.find('a')!.className).toContain('router-link-active')
+    expect(wrapper.find('a')!.className).toContain('router-link-exact-active')
   })
 
-  it('is active when a child is active', () => {
-    const { el } = factory(
+  it('is active when a child is active', async () => {
+    const { wrapper } = await factory(
       locations.child.normalized,
       { to: locations.parent.string },
       locations.parent.normalized
     )
-    expect(el.querySelector('a')!.className).toContain('router-link-active')
-    expect(el.querySelector('a')!.className).not.toContain(
+    expect(wrapper.find('a')!.className).toContain('router-link-active')
+    expect(wrapper.find('a')!.className).not.toContain(
       'router-link-exact-active'
     )
   })
 
-  it('only the children is exact-active', () => {
-    const { el } = factory(
+  it('only the children is exact-active', async () => {
+    const { wrapper } = await factory(
       locations.child.normalized,
       { to: locations.child.string },
       locations.child.normalized
     )
-    expect(el.querySelector('a')!.className).toContain('router-link-active')
-    expect(el.querySelector('a')!.className).toContain(
-      'router-link-exact-active'
-    )
+    expect(wrapper.find('a')!.className).toContain('router-link-active')
+    expect(wrapper.find('a')!.className).toContain('router-link-exact-active')
   })
 
-  it('child is not active if the parent is active', () => {
-    const { el } = factory(
+  it('child is not active if the parent is active', async () => {
+    const { wrapper } = await factory(
       locations.parent.normalized,
       { to: locations.child.string },
       locations.child.normalized
     )
-    expect(el.querySelector('a')!.className).not.toContain('router-link-active')
-    expect(el.querySelector('a')!.className).not.toContain(
+    expect(wrapper.find('a')!.className).not.toContain('router-link-active')
+    expect(wrapper.find('a')!.className).not.toContain(
       'router-link-exact-active'
     )
   })
 
-  it('alias parent is active when a child is active', () => {
-    let { el } = factory(
-      locations.child.normalized,
-      { to: locations.parentAlias.string },
-      locations.parentAlias.normalized
-    )
-    expect(el.querySelector('a')!.className).toContain('router-link-active')
-    expect(el.querySelector('a')!.className).not.toContain(
-      'router-link-exact-active'
-    )
-    el = factory(
-      locations.childDoubleAlias.normalized,
-      { to: locations.parentAlias.string },
-      locations.parentAlias.normalized
-    ).el
-    expect(el.querySelector('a')!.className).toContain('router-link-active')
-    expect(el.querySelector('a')!.className).not.toContain(
-      'router-link-exact-active'
-    )
-  })
-
-  it('alias parent is active', () => {
-    let { el } = factory(
-      locations.parent.normalized,
-      { to: locations.parentAlias.string },
-      locations.parentAlias.normalized
-    )
-    expect(el.querySelector('a')!.className).toContain('router-link-active')
-    expect(el.querySelector('a')!.className).toContain(
-      'router-link-exact-active'
-    )
-
-    el = factory(
-      locations.parentAlias.normalized,
+  it('parent is active if the child is an absolute path', async () => {
+    const { wrapper } = await factory(
+      locations.childAsAbsolute.normalized,
       { to: locations.parent.string },
       locations.parent.normalized
-    ).el
-    expect(el.querySelector('a')!.className).toContain('router-link-active')
-    expect(el.querySelector('a')!.className).toContain(
+    )
+    expect(wrapper.find('a')!.className).toContain('router-link-active')
+    expect(wrapper.find('a')!.className).not.toContain(
       'router-link-exact-active'
     )
   })
 
-  it('child and parent with alias', () => {
-    let { el } = factory(
+  it('empty path child is active as if it was the parent when on adjacent child', async () => {
+    const { wrapper } = await factory(
+      locations.child.normalized,
+      { to: locations.childEmpty.string },
+      locations.childEmpty.normalized
+    )
+    expect(wrapper.find('a')!.className).toContain('router-link-active')
+    expect(wrapper.find('a')!.className).not.toContain(
+      'router-link-exact-active'
+    )
+  })
+
+  it('alias of empty path child is active as if it was the parent when on adjacent child', async () => {
+    const { wrapper } = await factory(
+      locations.child.normalized,
+      { to: locations.childEmptyAlias.string },
+      locations.childEmptyAlias.normalized
+    )
+    expect(wrapper.find('a')!.className).toContain('router-link-active')
+    expect(wrapper.find('a')!.className).not.toContain(
+      'router-link-exact-active'
+    )
+  })
+
+  it('empty path child is active as if it was the parent when on adjacent nested child', async () => {
+    const { wrapper } = await factory(
+      locations.childChild.normalized,
+      { to: locations.childEmpty.string },
+      locations.childEmpty.normalized
+    )
+    expect(wrapper.find('a')!.className).toContain('router-link-active')
+    expect(wrapper.find('a')!.className).not.toContain(
+      'router-link-exact-active'
+    )
+  })
+
+  it('alias of empty path child is active as if it was the parent when on adjacent nested nested child', async () => {
+    const { wrapper } = await factory(
+      locations.childChild.normalized,
+      { to: locations.childEmptyAlias.string },
+      locations.childEmptyAlias.normalized
+    )
+    expect(wrapper.find('a')!.className).toContain('router-link-active')
+    expect(wrapper.find('a')!.className).not.toContain(
+      'router-link-exact-active'
+    )
+  })
+
+  it('alias parent is active if the child is an absolute path', async () => {
+    const { wrapper } = await factory(
+      locations.childAsAbsolute.normalized,
+      { to: locations.parentAlias.string },
+      locations.parentAlias.normalized
+    )
+    expect(wrapper.find('a')!.className).toContain('router-link-active')
+    expect(wrapper.find('a')!.className).not.toContain(
+      'router-link-exact-active'
+    )
+  })
+
+  it('alias parent is active when a child is active', async () => {
+    let { wrapper } = await factory(
+      locations.child.normalized,
+      { to: locations.parentAlias.string },
+      locations.parentAlias.normalized
+    )
+    expect(wrapper.find('a')!.className).toContain('router-link-active')
+    expect(wrapper.find('a')!.className).not.toContain(
+      'router-link-exact-active'
+    )
+    wrapper = (
+      await factory(
+        locations.childDoubleAlias.normalized,
+        { to: locations.parentAlias.string },
+        locations.parentAlias.normalized
+      )
+    ).wrapper
+    expect(wrapper.find('a')!.className).toContain('router-link-active')
+    expect(wrapper.find('a')!.className).not.toContain(
+      'router-link-exact-active'
+    )
+  })
+
+  it('alias parent is active', async () => {
+    let { wrapper } = await factory(
+      locations.parent.normalized,
+      { to: locations.parentAlias.string },
+      locations.parentAlias.normalized
+    )
+    expect(wrapper.find('a')!.className).toContain('router-link-active')
+    expect(wrapper.find('a')!.className).toContain('router-link-exact-active')
+
+    wrapper = (
+      await factory(
+        locations.parentAlias.normalized,
+        { to: locations.parent.string },
+        locations.parent.normalized
+      )
+    ).wrapper
+    expect(wrapper.find('a')!.className).toContain('router-link-active')
+    expect(wrapper.find('a')!.className).toContain('router-link-exact-active')
+  })
+
+  it('child and parent with alias', async () => {
+    let { wrapper } = await factory(
       locations.child.normalized,
       { to: locations.childDoubleAlias.string },
       locations.childDoubleAlias.normalized
     )
-    expect(el.querySelector('a')!.className).toContain('router-link-active')
-    expect(el.querySelector('a')!.className).toContain(
-      'router-link-exact-active'
-    )
+    expect(wrapper.find('a')!.className).toContain('router-link-active')
+    expect(wrapper.find('a')!.className).toContain('router-link-exact-active')
 
-    el = factory(
-      locations.child.normalized,
-      { to: locations.childParentAlias.string },
-      locations.childParentAlias.normalized
-    ).el
-    expect(el.querySelector('a')!.className).toContain('router-link-active')
-    expect(el.querySelector('a')!.className).toContain(
-      'router-link-exact-active'
-    )
+    wrapper = (
+      await factory(
+        locations.child.normalized,
+        { to: locations.childParentAlias.string },
+        locations.childParentAlias.normalized
+      )
+    ).wrapper
+    expect(wrapper.find('a')!.className).toContain('router-link-active')
+    expect(wrapper.find('a')!.className).toContain('router-link-exact-active')
   })
 
-  it('can be exact-active', () => {
-    const { el } = factory(
+  it('can be exact-active', async () => {
+    const { wrapper } = await factory(
       locations.basic.normalized,
       { to: locations.basic.string },
       locations.basic.normalized
     )
-    expect(el.querySelector('a')!.className).toContain(
-      'router-link-exact-active'
-    )
+    expect(wrapper.find('a')!.className).toContain('router-link-exact-active')
   })
 
-  it('calls ensureLocation', () => {
-    const { router } = factory(
+  it('calls ensureLocation', async () => {
+    const { router } = await factory(
       START_LOCATION_NORMALIZED,
       { to: locations.basic.string },
       locations.basic.normalized
@@ -455,63 +725,77 @@ describe('RouterLink', () => {
     expect(router.resolve).toHaveBeenCalledWith(locations.basic.string)
   })
 
-  // TODO: call when we can test this
-  it.skip('calls router.push when clicked', async () => {
-    const { router, el } = factory(
+  it('calls router.push when clicked', async () => {
+    const { router, wrapper } = await factory(
       START_LOCATION_NORMALIZED,
       { to: locations.basic.string },
       locations.basic.normalized
     )
-    el.click()
-    await tick()
+    wrapper.find('a')!.click()
+    await nextTick()
     expect(router.push).toHaveBeenCalledTimes(1)
-    expect(router.push).toHaveBeenCalledWith(locations.basic.normalized)
+  })
+
+  it('calls router.push with the correct location for aliases', async () => {
+    const { router, wrapper } = await factory(
+      START_LOCATION_NORMALIZED,
+      { to: locations.alias.string },
+      locations.alias.normalized
+    )
+    wrapper.find('a')!.click()
+    await nextTick()
+    expect(router.push).toHaveBeenCalledTimes(1)
+    expect(router.push).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        // this is the original name but if we push with this location, we will
+        // not have the alias on the url
+        name: 'home',
+      })
+    )
   })
 
   describe('v-slot', () => {
-    function factory(
-      currentLocation: RouteLocationNormalized,
-      propsData: any,
-      resolvedLocation: RouteLocationNormalized
-    ) {
-      const router = {
-        history: createMemoryHistory(),
-        createHref(to: RouteLocationNormalized): string {
-          return this.history.base + to.fullPath
-        },
-        resolve: jest.fn(),
-        push: jest.fn().mockResolvedValue(resolvedLocation),
-        currentRoute: ref(markNonReactive(currentLocation)),
-        setActiveApp: jest.fn(),
-      }
+    const slotTemplate = `
+        <span>
+          route: {{ JSON.stringify(route) }}
+          href: "{{ href }}"
+          isActive: "{{ isActive }}"
+          isExactActive: "{{ isExactActive }}"
+        </span>
+    `
 
-      router.resolve.mockReturnValueOnce(resolvedLocation)
-      const { app, el } = mount(router as any, {
-        template: `<RouterLink :to="to" v-slot="data">
-        route: {{ JSON.stringify(data.route) }}
-        href: "{{ data.href }}"
-        isActive: "{{ data.isActive }}"
-        isExactActive: "{{ data.isExactActive }}"
-      </RouterLink>`,
-        components: { RouterLink } as any,
-        setup() {
-          const to = ref(propsData.to)
-
-          return { to }
-        },
-      })
-
-      return { app, router, el }
-    }
-
-    it('provides information on v-slot', () => {
-      const { el } = factory(
+    it('provides information on v-slot', async () => {
+      const { wrapper } = await factory(
         locations.basic.normalized,
         { to: locations.basic.string },
-        locations.basic.normalized
+        locations.basic.normalized,
+        slotTemplate
       )
 
-      expect(el.innerHTML).toMatchSnapshot()
+      expect(wrapper.html()).toMatchSnapshot()
+    })
+
+    it('renders an anchor by default', async () => {
+      const { wrapper } = await factory(
+        locations.basic.normalized,
+        { to: locations.basic.string },
+        locations.basic.normalized,
+        slotTemplate
+      )
+
+      expect(wrapper.rootEl.children[0].tagName).toBe('A')
+      expect(wrapper.rootEl.children).toHaveLength(1)
+    })
+
+    it('can customize the rendering and remove the wrapping `a`', async () => {
+      const { wrapper } = await factory(
+        locations.basic.normalized,
+        { to: locations.basic.string, custom: true },
+        locations.basic.normalized,
+        slotTemplate
+      )
+
+      expect(wrapper.html()).not.toContain('</a>')
     })
   })
 })

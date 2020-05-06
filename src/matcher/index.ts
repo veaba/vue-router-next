@@ -1,63 +1,66 @@
 import {
-  RouteRecord,
+  RouteRecordRaw,
+  MatcherLocationRaw,
   MatcherLocation,
-  MatcherLocationNormalized,
-  ListenerRemover,
+  isRouteName,
+  RouteRecordName,
 } from '../types'
 import { createRouterError, ErrorTypes, MatcherError } from '../errors'
-import { createRouteRecordMatcher, RouteRecordMatcher } from './path-matcher'
-import { RouteRecordNormalized } from './types'
+import { createRouteRecordMatcher, RouteRecordMatcher } from './pathMatcher'
+import { RouteRecordRedirect, RouteRecordNormalized } from './types'
 import {
   PathParams,
   comparePathParserScore,
   PathParserOptions,
-} from './path-parser-ranker'
+  _PathParserOptions,
+} from './pathParserRanker'
+import { warn } from '../warning'
 
 let noop = () => {}
 
 interface RouterMatcher {
-  addRoute: (
-    record: RouteRecord,
-    parent?: RouteRecordMatcher
-  ) => ListenerRemover
+  addRoute: (record: RouteRecordRaw, parent?: RouteRecordMatcher) => () => void
   removeRoute: {
     (matcher: RouteRecordMatcher): void
-    (name: Required<RouteRecord>['name']): void
+    (name: RouteRecordName): void
   }
   getRoutes: () => RouteRecordMatcher[]
-  getRecordMatcher: (
-    name: Required<RouteRecord>['name']
-  ) => RouteRecordMatcher | undefined
+  getRecordMatcher: (name: RouteRecordName) => RouteRecordMatcher | undefined
   resolve: (
-    location: Readonly<MatcherLocation>,
-    currentLocation: Readonly<MatcherLocationNormalized>
-  ) => MatcherLocationNormalized
+    location: MatcherLocationRaw,
+    currentLocation: MatcherLocation
+  ) => MatcherLocation
 }
 
 export function createRouterMatcher(
-  routes: RouteRecord[],
+  routes: RouteRecordRaw[],
   globalOptions: PathParserOptions
 ): RouterMatcher {
   // normalized ordered array of matchers
   const matchers: RouteRecordMatcher[] = []
-  const matcherMap = new Map<string | symbol, RouteRecordMatcher>()
+  const matcherMap = new Map<RouteRecordName, RouteRecordMatcher>()
+  globalOptions = mergeOptions(
+    { strict: false, end: true, sensitive: false } as PathParserOptions,
+    globalOptions
+  )
 
-  function getRecordMatcher(name: string) {
+  function getRecordMatcher(name: RouteRecordName) {
     return matcherMap.get(name)
   }
 
-  // TODO: add routes to children of parent
   function addRoute(
-    record: Readonly<RouteRecord>,
+    record: RouteRecordRaw,
     parent?: RouteRecordMatcher,
     originalRecord?: RouteRecordMatcher
   ) {
     let mainNormalizedRecord = normalizeRouteRecord(record)
     // we might be the child of an alias
     mainNormalizedRecord.aliasOf = originalRecord && originalRecord.record
-    const options: PathParserOptions = { ...globalOptions, ...record.options }
+    const options: PathParserOptions = mergeOptions(globalOptions, record)
     // generate an array of records to correctly handle aliases
-    const normalizedRecords: RouteRecordNormalized[] = [mainNormalizedRecord]
+    const normalizedRecords: typeof mainNormalizedRecord[] = [
+      mainNormalizedRecord,
+    ]
     if ('alias' in record) {
       const aliases =
         typeof record.alias === 'string' ? [record.alias] : record.alias!
@@ -74,7 +77,9 @@ export function createRouterMatcher(
           aliasOf: originalRecord
             ? originalRecord.record
             : mainNormalizedRecord,
-        })
+          // the aliases are always of the same kind as the original since they
+          // are defined on the same record
+        } as typeof mainNormalizedRecord)
       }
     }
 
@@ -97,23 +102,32 @@ export function createRouterMatcher(
       // create the object before hand so it can be passed to children
       matcher = createRouteRecordMatcher(normalizedRecord, parent, options)
 
+      if (__DEV__ && parent && path[0] === '/')
+        checkMissingParamsInAbsolutePath(matcher, parent)
+
       // if we are an alias we must tell the original record that we exist
       // so we can be removed
       if (originalRecord) {
         originalRecord.alias.push(matcher)
+        if (__DEV__) {
+          checkSameParams(originalRecord, matcher)
+        }
       } else {
         // otherwise, the first record is the original and others are aliases
         originalMatcher = originalMatcher || matcher
         if (originalMatcher !== matcher) originalMatcher.alias.push(matcher)
       }
 
-      let children = mainNormalizedRecord.children
-      for (let i = 0; i < children.length; i++) {
-        addRoute(
-          children[i],
-          matcher,
-          originalRecord && originalRecord.children[i]
-        )
+      // only non redirect records have children
+      if ('children' in mainNormalizedRecord) {
+        let children = mainNormalizedRecord.children
+        for (let i = 0; i < children.length; i++) {
+          addRoute(
+            children[i],
+            matcher,
+            originalRecord && originalRecord.children[i]
+          )
+        }
       }
 
       // if there was no original record, then the first one was not an alias and all
@@ -131,8 +145,8 @@ export function createRouterMatcher(
       : noop
   }
 
-  function removeRoute(matcherRef: string | RouteRecordMatcher) {
-    if (typeof matcherRef === 'string') {
+  function removeRoute(matcherRef: RouteRecordName | RouteRecordMatcher) {
+    if (isRouteName(matcherRef)) {
       const matcher = matcherMap.get(matcherRef)
       if (matcher) {
         matcherMap.delete(matcherRef)
@@ -173,17 +187,18 @@ export function createRouterMatcher(
 
   /**
    * Resolves a location. Gives access to the route record that corresponds to the actual path as well as filling the corresponding params objects
-   * @param location MatcherLocation to resolve to a url
-   * @param currentLocation MatcherLocationNormalized of the current location
+   *
+   * @param location - MatcherLocationRaw to resolve to a url
+   * @param currentLocation - MatcherLocation of the current location
    */
   function resolve(
-    location: Readonly<MatcherLocation>,
-    currentLocation: Readonly<MatcherLocationNormalized>
-  ): MatcherLocationNormalized {
+    location: Readonly<MatcherLocationRaw>,
+    currentLocation: Readonly<MatcherLocation>
+  ): MatcherLocation {
     let matcher: RouteRecordMatcher | undefined
     let params: PathParams = {}
-    let path: MatcherLocationNormalized['path']
-    let name: MatcherLocationNormalized['name']
+    let path: MatcherLocation['path']
+    let name: MatcherLocation['name']
 
     if ('name' in location && location.name) {
       matcher = matcherMap.get(location.name)
@@ -194,21 +209,32 @@ export function createRouterMatcher(
         })
 
       name = matcher.record.name
-      // TODO: merge params with current location. Should this be done by name. I think there should be some kind of relationship between the records like children of a parent should keep parent props but not the rest
-      // needs an RFC if breaking change
-      params = location.params || currentLocation.params
+      params = {
+        ...paramsFromLocation(
+          currentLocation.params,
+          matcher.keys.map(k => k.name)
+        ),
+        ...location.params,
+      }
       // throws if cannot be stringified
       path = matcher.stringify(params)
     } else if ('path' in location) {
-      matcher = matchers.find(m => m.re.test(location.path))
-      // matcher should have a value after the loop
-
       // no need to resolve the path with the matcher as it was provided
       // this also allows the user to control the encoding
       path = location.path
+
+      if (__DEV__ && path[0] !== '/') {
+        warn(
+          `The Matcher cannot resolve relative paths but received "${path}". Unless you directly called \`matcher.resolve("${path}")\`, this is probably a bug in vue-router. Please open an issue at https://new-issue.vuejs.org/?repo=vuejs/vue-router-next.`
+        )
+      }
+
+      matcher = matchers.find(m => m.re.test(path))
+      // matcher should have a value after the loop
+
       if (matcher) {
         // TODO: dev warning of unused params if provided
-        params = matcher.parse(location.path)!
+        params = matcher.parse(path)!
         name = matcher.record.name
       }
       // location is a relative path
@@ -223,16 +249,17 @@ export function createRouterMatcher(
           currentLocation,
         })
       name = matcher.record.name
-      params = location.params || currentLocation.params
+      // since we are navigating to the same location, we don't need to pick the
+      // params like when `name` is provided
+      params = { ...currentLocation.params, ...location.params }
       path = matcher.stringify(params)
     }
 
-    const matched: MatcherLocationNormalized['matched'] = []
-    let parentMatcher: RouteRecordMatcher | void = matcher
+    const matched: MatcherLocation['matched'] = []
+    let parentMatcher: RouteRecordMatcher | undefined = matcher
     while (parentMatcher) {
       // reversed order so parents are at the beginning
-      // const { record } = parentMatcher
-      // TODO: check resolving child routes by path when parent has an alias
+
       matched.unshift(parentMatcher.record)
       parentMatcher = parentMatcher.parent
     }
@@ -242,7 +269,7 @@ export function createRouterMatcher(
       path,
       params,
       matched,
-      meta: matcher ? matcher.record.meta : {},
+      meta: mergeMetaFields(matched),
     }
   }
 
@@ -252,40 +279,54 @@ export function createRouterMatcher(
   return { addRoute, resolve, removeRoute, getRoutes, getRecordMatcher }
 }
 
+function paramsFromLocation(
+  params: MatcherLocation['params'],
+  keys: string[]
+): MatcherLocation['params'] {
+  let newParams = {} as MatcherLocation['params']
+
+  for (let key of keys) {
+    if (key in params) newParams[key] = params[key]
+  }
+
+  return newParams
+}
+
 /**
- * Normalizes a RouteRecord. Transforms the `redirect` option into a `beforeEnter`
+ * Normalizes a RouteRecordRaw. Transforms the `redirect` option into a `beforeEnter`
  * @param record
  * @returns the normalized version
  */
 export function normalizeRouteRecord(
-  record: Readonly<RouteRecord>
-): RouteRecordNormalized {
-  let components: RouteRecordNormalized['components']
-  let beforeEnter: RouteRecordNormalized['beforeEnter']
-  if ('redirect' in record) {
-    components = {}
-    let { redirect } = record
-    beforeEnter = (to, from, next) => {
-      next(typeof redirect === 'function' ? redirect(to) : redirect)
-    }
-  } else {
-    components =
-      'components' in record ? record.components : { default: record.component }
-    beforeEnter = record.beforeEnter
+  record: RouteRecordRaw
+): RouteRecordNormalized | RouteRecordRedirect {
+  const commonInitialValues = {
+    path: record.path,
+    name: record.name,
+    meta: record.meta || {},
+    aliasOf: undefined,
+    components: {},
   }
 
-  return {
-    path: record.path,
-    components,
-    // record is an object and if it has a children property, it's an array
-    children: (record as any).children || [],
-    name: record.name,
-    beforeEnter,
-    props: record.props || false,
-    meta: record.meta || {},
-    leaveGuards: [],
-    instances: {},
-    aliasOf: undefined,
+  if ('redirect' in record) {
+    return {
+      ...commonInitialValues,
+      redirect: record.redirect,
+    }
+  } else {
+    return {
+      ...commonInitialValues,
+      beforeEnter: record.beforeEnter,
+      props: record.props || false,
+      children: record.children || [],
+      instances: {},
+      leaveGuards: [],
+      updateGuards: [],
+      components:
+        'components' in record
+          ? record.components
+          : { default: record.component },
+    }
   }
 }
 
@@ -302,4 +343,66 @@ function isAliasRecord(record: RouteRecordMatcher | undefined): boolean {
   return false
 }
 
-export { PathParserOptions }
+/**
+ * Merge meta fields of an array of records
+ *
+ * @param matched array of matched records
+ */
+function mergeMetaFields(matched: MatcherLocation['matched']) {
+  return matched.reduce(
+    (meta, record) => ({
+      ...meta,
+      ...record.meta,
+    }),
+    {} as MatcherLocation['meta']
+  )
+}
+
+function mergeOptions<T>(defaults: T, partialOptions: Partial<T>): T {
+  let options = {} as T
+  for (let key in defaults) {
+    options[key] =
+      key in partialOptions ? partialOptions[key] : (defaults[key] as any)
+  }
+
+  return options
+}
+
+type ParamKey = RouteRecordMatcher['keys'][number]
+
+function isSameParam(a: ParamKey, b: ParamKey): boolean {
+  return (
+    a.name === b.name &&
+    a.optional === b.optional &&
+    a.repeatable === b.repeatable
+  )
+}
+
+function checkSameParams(a: RouteRecordMatcher, b: RouteRecordMatcher) {
+  for (let key of a.keys) {
+    if (!b.keys.find(isSameParam.bind(null, key)))
+      return warn(
+        `Alias "${b.record.path}" and the original record: "${a.record.path}" should have the exact same param named "${key.name}"`
+      )
+  }
+  for (let key of b.keys) {
+    if (!a.keys.find(isSameParam.bind(null, key)))
+      return warn(
+        `Alias "${b.record.path}" and the original record: "${a.record.path}" should have the exact same param named "${key.name}"`
+      )
+  }
+}
+
+function checkMissingParamsInAbsolutePath(
+  record: RouteRecordMatcher,
+  parent: RouteRecordMatcher
+) {
+  for (let key of parent.keys) {
+    if (!record.keys.find(isSameParam.bind(null, key)))
+      return warn(
+        `Absolute path "${record.record.path}" should have the exact same param named "${key.name}" as its parent "${parent.record.path}".`
+      )
+  }
+}
+
+export { PathParserOptions, _PathParserOptions }

@@ -1,121 +1,199 @@
 import {
   RouteLocationNormalized,
-  RouteRecord,
-  RouteLocation,
-  NavigationGuard,
-  ListenerRemover,
+  RouteRecordRaw,
+  RouteLocationRaw,
   PostNavigationGuard,
   START_LOCATION_NORMALIZED,
   Lazy,
-  TODO,
-  Immutable,
-  MatcherLocationNormalized,
-  RouteLocationNormalizedResolved,
+  RouteLocationNormalizedLoaded,
+  RouteLocation,
+  RouteRecordName,
+  isRouteName,
+  NavigationGuardWithThis,
+  RouteLocationOptions,
+  MatcherLocationRaw,
 } from './types'
-import { RouterHistory, parseURL, stringifyURL } from './history/common'
+import { RouterHistory, HistoryState } from './history/common'
 import {
-  ScrollToPosition,
+  ScrollPositionCoordinates,
   ScrollPosition,
+  getSavedScrollPosition,
+  getScrollKey,
+  saveScrollPosition,
+  computeScrollPosition,
   scrollToPosition,
-} from './utils/scroll'
-import { createRouterMatcher } from './matcher'
-import { createRouterError, ErrorTypes, NavigationError } from './errors'
+} from './scrollBehavior'
+import { createRouterMatcher, PathParserOptions } from './matcher'
 import {
-  extractComponentsGuards,
-  guardToPromiseFn,
-  applyToParams,
-  isSameRouteRecord,
-  isSameLocationObject,
-} from './utils'
+  createRouterError,
+  ErrorTypes,
+  NavigationFailure,
+  NavigationRedirectError,
+} from './errors'
+import { applyToParams, isBrowser } from './utils'
 import { useCallbacks } from './utils/callbacks'
-import { encodeParam, decode } from './utils/encoding'
+import { encodeParam, decode, encodeHash } from './encoding'
 import {
   normalizeQuery,
   parseQuery as originalParseQuery,
   stringifyQuery as originalStringifyQuery,
-} from './utils/query'
-import { ref, Ref, markNonReactive, nextTick, App, warn } from 'vue'
-import { RouteRecordNormalized } from './matcher/types'
-import { Link } from './components/Link'
-import { View } from './components/View'
+} from './query'
+import { shallowRef, Ref, nextTick, App } from 'vue'
+import { RouteRecord, RouteRecordNormalized } from './matcher/types'
+import { parseURL, stringifyURL, isSameRouteLocation } from './location'
+import { extractComponentsGuards, guardToPromiseFn } from './navigationGuards'
+import { applyRouterPlugin } from './install'
+import { warn } from './warning'
 
-type ErrorHandler = (error: any) => any
+/**
+ * Internal type to define an ErrorHandler
+ * @internal
+ */
+export type ErrorHandler = (error: any) => any
 // resolve, reject arguments of Promise constructor
 type OnReadyCallback = [() => void, (reason?: any) => void]
 
-interface ScrollBehavior {
+type Awaitable<T> = T | Promise<T>
+
+export interface ScrollBehavior {
   (
     to: RouteLocationNormalized,
-    from: RouteLocationNormalizedResolved,
-    savedPosition: ScrollToPosition | null
-  ): ScrollPosition | Promise<ScrollPosition>
+    from: RouteLocationNormalizedLoaded,
+    savedPosition: Required<ScrollPositionCoordinates> | null
+  ): Awaitable<ScrollPosition | false | void>
 }
 
-export interface RouterOptions {
+export interface RouterOptions extends PathParserOptions {
+  /**
+   * History implementation used by the router. Most web applications should use
+   * `createWebHistory` but it requires the server to be properly configured.
+   * You can also use a _hash_ based history with `createWebHashHistory` that
+   * does not require any configuration on the server but isn't handled at all
+   * by search engines and does poorly on SEO.
+   *
+   * @example
+   * ```js
+   * createRouter({
+   *   history: createWebHistory(),
+   *   // other options...
+   * })
+   * ```
+   */
   history: RouterHistory
-  routes: RouteRecord[]
+  /**
+   * Initial list of routes that should be added to the router.
+   */
+  routes: RouteRecordRaw[]
+  /**
+   * Function to control scrolling when navigating between pages.
+   */
   scrollBehavior?: ScrollBehavior
+  /**
+   * Custom implementation to parse a query.
+   *
+   * @example
+   * Let's say you want to use the package {@link https://github.com/ljharb/qs | `qs`}
+   * to parse queries, you would need to provide both `parseQuery` and
+   * {@link RouterOptions.stringifyQuery | `stringifyQuery`}:
+   * ```js
+   * import qs from 'qs'
+   *
+   * createRouter({
+   *   // other options...
+   *   parse: qs.parse,
+   *   stringifyQuery: qs.stringify,
+   * })
+   * ```
+   */
   parseQuery?: typeof originalParseQuery
+  /**
+   * {@link RouterOptions.parseQuery | `parseQuery`} counterpart to handle query parsing.
+   */
   stringifyQuery?: typeof originalStringifyQuery
-  // TODO: allow customizing encoding functions
+  /**
+   * Default class applied to active {@link RouterLink}. If none is provided,
+   * `router-link-active` will be applied.
+   */
+  linkActiveClass?: string
+  /**
+   * Default class applied to exact active {@link RouterLink}. If none is provided,
+   * `router-link-exact-active` will be applied.
+   */
+  linkExactActiveClass?: string
+  /**
+   * Default class applied to non active {@link RouterLink}. If none is provided,
+   * `router-link-inactive` will be applied.
+   */
+  // linkInactiveClass?: string
 }
 
 export interface Router {
-  history: RouterHistory
-  currentRoute: Ref<Immutable<RouteLocationNormalizedResolved>>
+  readonly history: RouterHistory
+  readonly currentRoute: Ref<RouteLocationNormalizedLoaded>
+  readonly options: RouterOptions
 
-  addRoute(parentName: string, route: RouteRecord): () => void
-  addRoute(route: RouteRecord): () => void
-  removeRoute(name: string): void
-  getRoutes(): RouteRecordNormalized[]
+  addRoute(parentName: RouteRecordName, route: RouteRecordRaw): () => void
+  addRoute(route: RouteRecordRaw): () => void
+  removeRoute(name: RouteRecordName): void
+  hasRoute(name: RouteRecordName): boolean
+  getRoutes(): RouteRecord[]
 
-  resolve(to: RouteLocation): RouteLocationNormalized
-  createHref(to: RouteLocationNormalized): string
-  push(to: RouteLocation): Promise<RouteLocationNormalizedResolved>
-  replace(to: RouteLocation): Promise<RouteLocationNormalizedResolved>
+  resolve(to: RouteLocationRaw): RouteLocation & { href: string }
 
-  beforeEach(guard: NavigationGuard<undefined>): ListenerRemover
-  afterEach(guard: PostNavigationGuard): ListenerRemover
+  push(to: RouteLocationRaw): Promise<NavigationFailure | void | undefined>
+  replace(to: RouteLocationRaw): Promise<NavigationFailure | void | undefined>
+  back(): Promise<NavigationFailure | void | undefined>
+  forward(): Promise<NavigationFailure | void | undefined>
+  go(delta: number): Promise<NavigationFailure | void | undefined>
 
-  onError(handler: ErrorHandler): ListenerRemover
+  beforeEach(guard: NavigationGuardWithThis<undefined>): () => void
+  beforeResolve(guard: NavigationGuardWithThis<undefined>): () => void
+  afterEach(guard: PostNavigationGuard): () => void
+
+  onError(handler: ErrorHandler): () => void
   isReady(): Promise<void>
 
   install(app: App): void
 }
 
-const isClient = typeof window !== 'undefined'
+/**
+ * Create a Router instance that can be used on a Vue app.
+ *
+ * @param options - {@link RouterOptions}
+ */
+export function createRouter(options: RouterOptions): Router {
+  const matcher = createRouterMatcher(options.routes, options)
+  let parseQuery = options.parseQuery || originalParseQuery
+  let stringifyQuery = options.stringifyQuery || originalStringifyQuery
+  let { scrollBehavior } = options
+  let routerHistory = options.history
 
-export function createRouter({
-  history,
-  routes,
-  scrollBehavior,
-  parseQuery = originalParseQuery,
-  stringifyQuery = originalStringifyQuery,
-}: RouterOptions): Router {
-  const matcher = createRouterMatcher(routes, {})
-
-  const beforeGuards = useCallbacks<NavigationGuard<undefined>>()
+  const beforeGuards = useCallbacks<NavigationGuardWithThis<undefined>>()
+  const beforeResolveGuards = useCallbacks<NavigationGuardWithThis<undefined>>()
   const afterGuards = useCallbacks<PostNavigationGuard>()
-  const currentRoute = ref<RouteLocationNormalizedResolved>(
+  const currentRoute = shallowRef<RouteLocationNormalizedLoaded>(
     START_LOCATION_NORMALIZED
   )
-  let pendingLocation: Immutable<RouteLocationNormalized> = START_LOCATION_NORMALIZED
+  let pendingLocation: RouteLocation = START_LOCATION_NORMALIZED
 
-  if (isClient && 'scrollRestoration' in window.history) {
-    window.history.scrollRestoration = 'manual'
+  if (isBrowser && 'scrollRestoration' in history) {
+    history.scrollRestoration = 'manual'
   }
 
-  function createHref(to: RouteLocationNormalized): string {
-    return history.base + to.fullPath
-  }
-
+  const normalizeParams = applyToParams.bind(
+    null,
+    paramValue => '' + paramValue
+  )
   const encodeParams = applyToParams.bind(null, encodeParam)
   const decodeParams = applyToParams.bind(null, decode)
 
-  function addRoute(parentOrRoute: string | RouteRecord, route?: RouteRecord) {
+  function addRoute(
+    parentOrRoute: RouteRecordName | RouteRecordRaw,
+    route?: RouteRecordRaw
+  ) {
     let parent: Parameters<typeof matcher['addRoute']>[1] | undefined
-    let record: RouteRecord
-    if (typeof parentOrRoute === 'string') {
+    let record: RouteRecordRaw
+    if (isRouteName(parentOrRoute)) {
       parent = matcher.getRecordMatcher(parentOrRoute)
       record = route!
     } else {
@@ -125,139 +203,270 @@ export function createRouter({
     return matcher.addRoute(record, parent)
   }
 
-  function removeRoute(name: string) {
+  function removeRoute(name: RouteRecordName) {
     let recordMatcher = matcher.getRecordMatcher(name)
     if (recordMatcher) {
       matcher.removeRoute(recordMatcher)
     } else if (__DEV__) {
-      // TODO: adapt if we allow Symbol as a name
-      warn(`Cannot remove non-existant route "${name}"`)
+      warn(`Cannot remove non-existent route "${String(name)}"`)
     }
   }
 
-  function getRoutes(): RouteRecordNormalized[] {
+  function getRoutes() {
     return matcher.getRoutes().map(routeMatcher => routeMatcher.record)
   }
 
+  function hasRoute(name: RouteRecordName): boolean {
+    return !!matcher.getRecordMatcher(name)
+  }
+
   function resolve(
-    location: RouteLocation,
-    currentLocation?: RouteLocationNormalizedResolved
-  ): RouteLocationNormalized {
-    // const objectLocation = routerLocationAsObject(location)
+    rawLocation: Readonly<RouteLocationRaw>,
+    currentLocation?: Readonly<RouteLocationNormalizedLoaded>
+  ): RouteLocation & { href: string } {
+    // const objectLocation = routerLocationAsObject(rawLocation)
     currentLocation = currentLocation || currentRoute.value
-    if (typeof location === 'string') {
-      let locationNormalized = parseURL(parseQuery, location)
+    if (typeof rawLocation === 'string') {
+      let locationNormalized = parseURL(
+        parseQuery,
+        rawLocation,
+        currentLocation.path
+      )
       let matchedRoute = matcher.resolve(
         { path: locationNormalized.path },
         currentLocation
       )
 
       return {
+        // fullPath: locationNormalized.fullPath,
+        // query: locationNormalized.query,
+        // hash: locationNormalized.hash,
         ...locationNormalized,
         ...matchedRoute,
+        // path: matchedRoute.path,
+        // name: matchedRoute.name,
+        // meta: matchedRoute.meta,
+        // matched: matchedRoute.matched,
         params: decodeParams(matchedRoute.params),
         redirectedFrom: undefined,
+        href: routerHistory.base + locationNormalized.fullPath,
       }
     }
 
-    let matchedRoute: MatcherLocationNormalized = // relative or named location, path is ignored
-      // for same reason TS thinks location.params can be undefined
-      matcher.resolve(
-        'params' in location
-          ? { ...location, params: encodeParams(location.params) }
-          : location,
-        currentLocation
-      )
+    let matcherLocation: MatcherLocationRaw
 
-    // put back the unencoded params as given by the user (avoid the cost of decoding them)
-    // TODO: normalize params if we accept numbers as raw values
-    matchedRoute.params =
-      'params' in location
-        ? location.params!
-        : decodeParams(matchedRoute.params)
-
-    return {
-      fullPath: stringifyURL(stringifyQuery, {
-        ...location,
-        path: matchedRoute.path,
-      }),
-      hash: location.hash || '',
-      query: normalizeQuery(location.query),
-      ...matchedRoute,
-      redirectedFrom: undefined,
-    }
-  }
-
-  function push(
-    to: RouteLocation | RouteLocationNormalized
-  ): Promise<RouteLocationNormalizedResolved> {
-    return pushWithRedirect(to, undefined)
-  }
-
-  async function pushWithRedirect(
-    to: RouteLocation | RouteLocationNormalized,
-    redirectedFrom: RouteLocationNormalized | undefined
-  ): Promise<RouteLocationNormalizedResolved> {
-    const toLocation: RouteLocationNormalized = (pendingLocation =
-      // Some functions will pass a normalized location and we don't need to resolve it again
-      typeof to === 'object' && 'matched' in to ? to : resolve(to))
-    const from: RouteLocationNormalizedResolved = currentRoute.value
-    // @ts-ignore: no need to check the string as force do not exist on a string
-    const force: boolean | undefined = to.force
-
-    // TODO: should we throw an error as the navigation was aborted
-    if (!force && isSameRouteLocation(from, toLocation)) return from
-
-    toLocation.redirectedFrom = redirectedFrom
-
-    // trigger all guards, throw if navigation is rejected
-    try {
-      await navigate(toLocation, from)
-    } catch (error) {
-      // push was called while waiting in guards
-      // TODO: write tests
-      if (pendingLocation !== toLocation) {
-        triggerError(
-          createRouterError<NavigationError>(ErrorTypes.NAVIGATION_CANCELLED, {
-            from,
-            to: toLocation,
-          })
+    // path could be relative in object as well
+    if ('path' in rawLocation) {
+      if (
+        __DEV__ &&
+        'params' in rawLocation &&
+        !('name' in rawLocation) &&
+        Object.keys((rawLocation as any).params).length
+      ) {
+        warn(
+          `Path "${
+            (rawLocation as any).path
+          }" was passed with params but they will be ignored. Use a named route alongside params instead.`
         )
       }
-
-      if (error.type === ErrorTypes.NAVIGATION_GUARD_REDIRECT) {
-        // preserve the original redirectedFrom if any
-        return pushWithRedirect(error.to, redirectedFrom || toLocation)
+      matcherLocation = {
+        ...rawLocation,
+        path: parseURL(parseQuery, rawLocation.path, currentLocation.path).path,
       }
-
-      // unkwnown error
-      triggerError(error)
+    } else {
+      matcherLocation = {
+        ...rawLocation,
+        params: encodeParams(rawLocation.params),
+      }
     }
 
-    finalizeNavigation(
-      toLocation as RouteLocationNormalizedResolved,
-      from,
-      true,
-      // RouteLocationNormalized will give undefined
-      (to as RouteLocation).replace === true
-    )
+    let matchedRoute = matcher.resolve(matcherLocation, currentLocation)
 
-    return currentRoute.value
+    const hash = encodeHash(rawLocation.hash || '')
+
+    if (__DEV__ && hash && hash[0] !== '#') {
+      warn(
+        `A \`hash\` should always start with the character "#". Replace "${hash}" with "#${hash}".`
+      )
+    }
+
+    // put back the unencoded params as given by the user (avoid the cost of decoding them)
+    matchedRoute.params =
+      'params' in rawLocation
+        ? normalizeParams(rawLocation.params)
+        : decodeParams(matchedRoute.params)
+
+    const fullPath = stringifyURL(stringifyQuery, {
+      ...rawLocation,
+      hash,
+      path: matchedRoute.path,
+    })
+
+    return {
+      fullPath,
+      // keep the hash encoded so fullPath is effectively path + encodedQuery +
+      // hash
+      hash,
+      query: normalizeQuery(rawLocation.query),
+      ...matchedRoute,
+      redirectedFrom: undefined,
+      href: routerHistory.base + fullPath,
+    }
   }
 
-  function replace(to: RouteLocation | RouteLocationNormalized) {
-    const location = typeof to === 'string' ? { path: to } : to
-    return push({ ...location, replace: true })
+  function locationAsObject(
+    to: RouteLocationRaw | RouteLocationNormalized
+  ): Exclude<RouteLocationRaw, string> | RouteLocationNormalized {
+    return typeof to === 'string' ? { path: to } : to
   }
 
-  async function navigate(
+  function push(to: RouteLocationRaw | RouteLocation) {
+    return pushWithRedirect(to)
+  }
+
+  function replace(to: RouteLocationRaw | RouteLocationNormalized) {
+    return push({ ...locationAsObject(to), replace: true })
+  }
+
+  function pushWithRedirect(
+    to: RouteLocationRaw | RouteLocation,
+    redirectedFrom?: RouteLocation
+  ): Promise<NavigationFailure | void | undefined> {
+    const targetLocation: RouteLocation = (pendingLocation = resolve(to))
+    const from = currentRoute.value
+    const data: HistoryState | undefined = (to as RouteLocationOptions).state
+    const force: boolean | undefined = (to as RouteLocationOptions).force
+    // to could be a string where `replace` is a function
+    const replace = (to as RouteLocationOptions).replace === true
+
+    const lastMatched =
+      targetLocation.matched[targetLocation.matched.length - 1]
+    if (lastMatched && 'redirect' in lastMatched) {
+      const { redirect } = lastMatched
+      // transform it into an object to pass the original RouteLocaleOptions
+      let newTargetLocation = locationAsObject(
+        typeof redirect === 'function' ? redirect(targetLocation) : redirect
+      )
+
+      if (
+        __DEV__ &&
+        !('path' in newTargetLocation) &&
+        !('name' in newTargetLocation)
+      ) {
+        warn(
+          `Invalid redirect found:\n${JSON.stringify(
+            newTargetLocation,
+            null,
+            2
+          )}\n when navigating to "${
+            targetLocation.fullPath
+          }". A redirect must contain a name or path.`
+        )
+        return Promise.reject(new Error('Invalid redirect'))
+      }
+      return pushWithRedirect(
+        {
+          // having a path here would be a problem with relative locations but
+          // at the same time it doesn't make sense for a redirect to be
+          // relative (no name, no path) because it would create an infinite
+          // loop. Since newTargetLocation must either have a `path` or a
+          // `name`, this will never happen
+          ...targetLocation,
+          ...newTargetLocation,
+          state: data,
+          force,
+          replace,
+        },
+        // keep original redirectedFrom if it exists
+        redirectedFrom || targetLocation
+      )
+    }
+
+    // if it was a redirect we already called `pushWithRedirect` above
+    const toLocation = targetLocation as RouteLocationNormalized
+
+    toLocation.redirectedFrom = redirectedFrom
+    let failure: NavigationFailure | void | undefined
+
+    if (!force && isSameRouteLocation(from, targetLocation)) {
+      failure = createRouterError<NavigationFailure>(
+        ErrorTypes.NAVIGATION_DUPLICATED,
+        { to: toLocation, from }
+      )
+      // trigger scroll to allow scrolling to the same anchor
+      handleScroll(
+        from,
+        from,
+        // this is a push, the only way for it to be triggered from a
+        // history.listen is with a redirect, which makes it become a pus
+        true,
+        // This cannot be the first navigation because the initial location
+        // cannot be manually navigated to
+        false
+      )
+    }
+
+    return (failure ? Promise.resolve(failure) : navigate(toLocation, from))
+      .catch((error: NavigationFailure | NavigationRedirectError) => {
+        // a more recent navigation took place
+        if (pendingLocation !== toLocation) {
+          return createRouterError<NavigationFailure>(
+            ErrorTypes.NAVIGATION_CANCELLED,
+            {
+              from,
+              to: toLocation,
+            }
+          )
+        }
+        if (
+          error.type === ErrorTypes.NAVIGATION_ABORTED ||
+          error.type === ErrorTypes.NAVIGATION_GUARD_REDIRECT
+        ) {
+          return error
+        }
+        // unknown error, rejects
+        return triggerError(error)
+      })
+      .then((failure: NavigationFailure | NavigationRedirectError | void) => {
+        if (failure) {
+          if (failure.type === ErrorTypes.NAVIGATION_GUARD_REDIRECT)
+            // preserve the original redirectedFrom if any
+            return pushWithRedirect(
+              // keep options
+              {
+                ...locationAsObject(failure.to),
+                state: data,
+                force,
+                replace,
+              },
+              redirectedFrom || toLocation
+            )
+        } else {
+          // if we fail we don't finalize the navigation
+          failure = finalizeNavigation(
+            toLocation as RouteLocationNormalizedLoaded,
+            from,
+            true,
+            replace,
+            data
+          )
+        }
+        triggerAfterEach(
+          toLocation as RouteLocationNormalizedLoaded,
+          from,
+          failure
+        )
+        return failure
+      })
+  }
+
+  function navigate(
     to: RouteLocationNormalized,
-    from: RouteLocationNormalizedResolved
-  ): Promise<TODO> {
+    from: RouteLocationNormalizedLoaded
+  ): Promise<any> {
     let guards: Lazy<any>[]
 
     // all components here have been resolved once because we are leaving
-    // TODO: refactor both together
     guards = extractComponentsGuards(
       from.matched.filter(record => to.matched.indexOf(record) < 0).reverse(),
       'beforeRouteLeave',
@@ -267,7 +476,7 @@ export function createRouter({
 
     const [
       leavingRecords,
-      // updatingRecords,
+      updatingRecords,
       // enteringRecords,
     ] = extractChangingRecords(to, from)
 
@@ -275,64 +484,89 @@ export function createRouter({
       for (const guard of record.leaveGuards) {
         guards.push(guardToPromiseFn(guard, to, from))
       }
-
-      // free the references
-      record.instances = {}
     }
 
     // run the queue of per route beforeRouteLeave guards
-    await runGuardQueue(guards)
-
-    // check global guards beforeEach
-    guards = []
-    for (const guard of beforeGuards.list()) {
-      guards.push(guardToPromiseFn(guard, to, from))
-    }
-
-    // console.log('Guarding against', guards.length, 'guards')
-    await runGuardQueue(guards)
-
-    // check in components beforeRouteUpdate
-    guards = extractComponentsGuards(
-      to.matched.filter(record => from.matched.indexOf(record as any) > -1),
-      'beforeRouteUpdate',
-      to,
-      from
-    )
-
-    // run the queue of per route beforeEnter guards
-    await runGuardQueue(guards)
-
-    // check the route beforeEnter
-    guards = []
-    for (const record of to.matched) {
-      // do not trigger beforeEnter on reused views
-      if (record.beforeEnter && from.matched.indexOf(record as any) < 0) {
-        if (Array.isArray(record.beforeEnter)) {
-          for (const beforeEnter of record.beforeEnter)
-            guards.push(guardToPromiseFn(beforeEnter, to, from))
-        } else {
-          guards.push(guardToPromiseFn(record.beforeEnter, to, from))
+    return runGuardQueue(guards)
+      .then(() => {
+        // check global guards beforeEach
+        guards = []
+        for (const guard of beforeGuards.list()) {
+          guards.push(guardToPromiseFn(guard, to, from))
         }
-      }
-    }
 
-    // run the queue of per route beforeEnter guards
-    await runGuardQueue(guards)
+        return runGuardQueue(guards)
+      })
+      .then(() => {
+        // check in components beforeRouteUpdate
+        guards = extractComponentsGuards(
+          to.matched.filter(record => from.matched.indexOf(record as any) > -1),
+          'beforeRouteUpdate',
+          to,
+          from
+        )
 
-    // TODO: at this point to.matched is normalized and does not contain any () => Promise<Component>
+        for (const record of updatingRecords) {
+          for (const guard of record.updateGuards) {
+            guards.push(guardToPromiseFn(guard, to, from))
+          }
+        }
 
-    // check in-component beforeRouteEnter
-    guards = extractComponentsGuards(
-      // the type does'nt matter as we are comparing an object per reference
-      to.matched.filter(record => from.matched.indexOf(record as any) < 0),
-      'beforeRouteEnter',
-      to,
-      from
-    )
+        // run the queue of per route beforeEnter guards
+        return runGuardQueue(guards)
+      })
+      .then(() => {
+        // check the route beforeEnter
+        guards = []
+        for (const record of to.matched) {
+          // do not trigger beforeEnter on reused views
+          if (record.beforeEnter && from.matched.indexOf(record as any) < 0) {
+            if (Array.isArray(record.beforeEnter)) {
+              for (const beforeEnter of record.beforeEnter)
+                guards.push(guardToPromiseFn(beforeEnter, to, from))
+            } else {
+              guards.push(guardToPromiseFn(record.beforeEnter, to, from))
+            }
+          }
+        }
 
-    // run the queue of per route beforeEnter guards
-    await runGuardQueue(guards)
+        // run the queue of per route beforeEnter guards
+        return runGuardQueue(guards)
+      })
+      .then(() => {
+        // NOTE: at this point to.matched is normalized and does not contain any () => Promise<Component>
+
+        // check in-component beforeRouteEnter
+        guards = extractComponentsGuards(
+          // the type doesn't matter as we are comparing an object per reference
+          to.matched.filter(record => from.matched.indexOf(record as any) < 0),
+          'beforeRouteEnter',
+          to,
+          from
+        )
+
+        // run the queue of per route beforeEnter guards
+        return runGuardQueue(guards)
+      })
+      .then(() => {
+        // check global guards beforeResolve
+        guards = []
+        for (const guard of beforeResolveGuards.list()) {
+          guards.push(guardToPromiseFn(guard, to, from))
+        }
+
+        return runGuardQueue(guards)
+      })
+  }
+
+  function triggerAfterEach(
+    to: RouteLocationNormalizedLoaded,
+    from: RouteLocationNormalizedLoaded,
+    failure?: NavigationFailure | void
+  ): void {
+    // navigation is confirmed, call afterGuards
+    // TODO: wrap with error handlers
+    for (const guard of afterGuards.list()) guard(to, from, failure)
   }
 
   /**
@@ -341,100 +575,128 @@ export function createRouter({
    * - Calls the scrollBehavior
    */
   function finalizeNavigation(
-    toLocation: RouteLocationNormalizedResolved,
-    from: RouteLocationNormalizedResolved,
+    toLocation: RouteLocationNormalizedLoaded,
+    from: RouteLocationNormalizedLoaded,
     isPush: boolean,
-    replace?: boolean
-  ) {
+    replace?: boolean,
+    data?: HistoryState
+  ): NavigationFailure | void {
     // a more recent navigation took place
     if (pendingLocation !== toLocation) {
-      return triggerError(
-        createRouterError<NavigationError>(ErrorTypes.NAVIGATION_CANCELLED, {
+      return createRouterError<NavigationFailure>(
+        ErrorTypes.NAVIGATION_CANCELLED,
+        {
           from,
           to: toLocation,
-        }),
-        isPush
+        }
       )
     }
 
-    // remove registered guards from removed matched records
     const [leavingRecords] = extractChangingRecords(toLocation, from)
     for (const record of leavingRecords) {
+      // remove registered guards from removed matched records
       record.leaveGuards = []
+      // free the references
+
+      // TODO: to refactor once keep-alive and transition can be supported
+      record.instances = {}
     }
 
     // only consider as push if it's not the first navigation
     const isFirstNavigation = from === START_LOCATION_NORMALIZED
+    const state = !isBrowser ? {} : history.state
 
     // change URL only if the user did a push/replace and if it's not the initial navigation because
     // it's just reflecting the url
     if (isPush) {
-      if (replace || isFirstNavigation) history.replace(toLocation)
-      else history.push(toLocation)
+      // on the initial navigation, we want to reuse the scroll position from
+      // history state if it exists
+      if (replace || isFirstNavigation)
+        routerHistory.replace(toLocation, {
+          scroll: isFirstNavigation && state && state.scroll,
+          ...data,
+        })
+      else routerHistory.push(toLocation, data)
     }
 
     // accept current navigation
-    currentRoute.value = markNonReactive(toLocation)
-    // TODO: this doesn't work on first load. Moving it to RouterView could allow automatically handling transitions too maybe
-    // TODO: refactor with a state getter
-    const state = isPush || !isClient ? {} : window.history.state
-    handleScroll(toLocation, from, state && state.scroll).catch(err =>
-      triggerError(err, false)
-    )
-
-    // navigation is confirmed, call afterGuards
-    for (const guard of afterGuards.list()) guard(toLocation, from)
+    currentRoute.value = toLocation
+    handleScroll(toLocation, from, isPush, isFirstNavigation)
 
     markAsReady()
   }
 
   // attach listener to history to trigger navigations
-  history.listen(async (to, _from, info) => {
-    // TODO: try catch to correctly log the matcher error
-    const toLocation = resolve(to.fullPath)
-    // console.log({ to, matchedRoute })
+  routerHistory.listen((to, _from, info) => {
+    // TODO: in dev try catch to correctly log the matcher error
+    // cannot be a redirect route because it was in history
+    const toLocation = resolve(to.fullPath) as RouteLocationNormalized
 
     pendingLocation = toLocation
     const from = currentRoute.value
 
-    try {
-      await navigate(toLocation, from)
-      finalizeNavigation(
-        // after navigation, all matched components are resolved
-        toLocation as RouteLocationNormalizedResolved,
-        from,
-        false
+    if (isBrowser) {
+      saveScrollPosition(
+        getScrollKey(from.fullPath, info.delta),
+        computeScrollPosition()
       )
-    } catch (error) {
-      if (error.type === ErrorTypes.NAVIGATION_GUARD_REDIRECT) {
-        // TODO: refactor the duplication of new NavigationCancelled by
-        // checking instanceof NavigationError (it's another TODO)
+    }
+
+    navigate(toLocation, from)
+      .catch((error: NavigationFailure | NavigationRedirectError) => {
         // a more recent navigation took place
         if (pendingLocation !== toLocation) {
-          return triggerError(
-            createRouterError<NavigationError>(
-              ErrorTypes.NAVIGATION_CANCELLED,
-              {
-                from,
-                to: toLocation,
-              }
-            ),
-            false
+          return createRouterError<NavigationFailure>(
+            ErrorTypes.NAVIGATION_CANCELLED,
+            {
+              from,
+              to: toLocation,
+            }
           )
         }
-        triggerError(error, false)
-
-        // the error is already handled by router.push
-        // we just want to avoid logging the error
-        pushWithRedirect(error.to, toLocation).catch(() => {})
-      } else if (error.type === ErrorTypes.NAVIGATION_ABORTED) {
-        console.log('Cancelled, going to', -info.distance)
+        if (error.type === ErrorTypes.NAVIGATION_ABORTED) {
+          return error as NavigationFailure
+        }
+        if (error.type === ErrorTypes.NAVIGATION_GUARD_REDIRECT) {
+          routerHistory.go(-info.delta, false)
+          // the error is already handled by router.push we just want to avoid
+          // logging the error
+          pushWithRedirect(
+            (error as NavigationRedirectError).to,
+            toLocation
+          ).catch(() => {
+            // TODO: in dev show warning, in prod triggerError, same as initial navigation
+          })
+          // avoid the then branch
+          return Promise.reject()
+        }
         // TODO: test on different browsers ensure consistent behavior
-        history.go(-info.distance, false)
-      } else {
-        triggerError(error, false)
-      }
-    }
+        routerHistory.go(-info.delta, false)
+        // unrecognized error, transfer to the global handler
+        return triggerError(error)
+      })
+      .then((failure: NavigationFailure | void) => {
+        failure =
+          failure ||
+          finalizeNavigation(
+            // after navigation, all matched components are resolved
+            toLocation as RouteLocationNormalizedLoaded,
+            from,
+            false
+          )
+
+        // revert the navigation
+        if (failure) routerHistory.go(-info.delta, false)
+
+        triggerAfterEach(
+          toLocation as RouteLocationNormalizedLoaded,
+          from,
+          failure
+        )
+      })
+      .catch(() => {
+        // TODO: same as above
+      })
   })
 
   // Initialization and Errors
@@ -445,13 +707,13 @@ export function createRouter({
 
   /**
    * Trigger errorHandlers added via onError and throws the error as well
-   * @param error error to throw
-   * @param shouldThrow defaults to true. Pass false to not throw the error
+   * @param error - error to throw
+   * @returns the error as a rejected promise
    */
-  function triggerError(error: any, shouldThrow: boolean = true): void {
+  function triggerError(error: any) {
     markAsReady(error)
     errorHandlers.list().forEach(handler => handler(error))
-    if (shouldThrow) throw error
+    return Promise.reject(error)
   }
 
   /**
@@ -473,7 +735,7 @@ export function createRouter({
   /**
    * Mark the router as ready, resolving the promised returned by isReady(). Can
    * only be called once, otherwise does nothing.
-   * @param err optional error
+   * @param err - optional error
    */
   function markAsReady(err?: any): void {
     if (ready) return
@@ -485,18 +747,44 @@ export function createRouter({
   }
 
   // Scroll behavior
+  function handleScroll(
+    to: RouteLocationNormalizedLoaded,
+    from: RouteLocationNormalizedLoaded,
+    isPush: boolean,
+    isFirstNavigation: boolean
+  ): Promise<any> {
+    if (!isBrowser || !scrollBehavior) return Promise.resolve()
 
-  async function handleScroll(
-    to: RouteLocationNormalizedResolved,
-    from: RouteLocationNormalizedResolved,
-    scrollPosition?: ScrollToPosition
-  ) {
-    if (!scrollBehavior) return
+    let scrollPosition: Required<ScrollPositionCoordinates> | null =
+      (!isPush && getSavedScrollPosition(getScrollKey(to.fullPath, 0))) ||
+      ((isFirstNavigation || !isPush) &&
+        (history.state as HistoryState) &&
+        history.state.scroll) ||
+      null
 
-    await nextTick()
-    const position = await scrollBehavior(to, from, scrollPosition || null)
-    console.log('scrolling to', position)
-    scrollToPosition(position)
+    return nextTick()
+      .then(() => scrollBehavior!(to, from, scrollPosition))
+      .then(position => position && scrollToPosition(position))
+      .catch(triggerError)
+  }
+
+  function go(delta: number) {
+    return new Promise<NavigationFailure | void | undefined>(
+      (resolve, reject) => {
+        let removeError = errorHandlers.add(err => {
+          removeError()
+          removeAfterEach()
+          reject(err)
+        })
+        let removeAfterEach = afterGuards.add((_to, _from, failure) => {
+          removeError()
+          removeAfterEach()
+          resolve(failure)
+        })
+
+        routerHistory.go(delta)
+      }
+    )
   }
 
   const router: Router = {
@@ -504,20 +792,25 @@ export function createRouter({
 
     addRoute,
     removeRoute,
+    hasRoute,
     getRoutes,
+    resolve,
+    options,
 
     push,
     replace,
-    resolve,
+    go,
+    back: () => go(-1),
+    forward: () => go(1),
 
     beforeEach: beforeGuards.add,
+    beforeResolve: beforeResolveGuards.add,
     afterEach: afterGuards.add,
-    createHref,
 
     onError: errorHandlers.add,
     isReady,
 
-    history,
+    history: routerHistory,
     install(app: App) {
       applyRouterPlugin(app, this)
     },
@@ -526,41 +819,16 @@ export function createRouter({
   return router
 }
 
-function applyRouterPlugin(app: App, router: Router) {
-  // TODO: remove as any
-  app.component('RouterLink', Link as any)
-  app.component('RouterView', View as any)
-
-  let started = false
-  // TODO: can we use something that isn't a mixin?
-  // TODO: this initial navigation is only necessary on client, on server it doesn't make sense
-  // because it will create an extra unecessary navigation and could lead to problems
-  if (isClient)
-    app.mixin({
-      beforeCreate() {
-        if (!started) {
-          router.push(router.history.location.fullPath).catch(err => {
-            console.error('Unhandled error', err)
-          })
-          started = true
-        }
-      },
-    })
-
-  // TODO: merge strats?
-  app.provide('router', router)
-  app.provide('route', router.currentRoute)
-}
-
-async function runGuardQueue(guards: Lazy<any>[]): Promise<void> {
-  for (const guard of guards) {
-    await guard()
-  }
+function runGuardQueue(guards: Lazy<any>[]): Promise<void> {
+  return guards.reduce(
+    (promise, guard) => promise.then(() => guard()),
+    Promise.resolve()
+  )
 }
 
 function extractChangingRecords(
   to: RouteLocationNormalized,
-  from: RouteLocationNormalizedResolved
+  from: RouteLocationNormalizedLoaded
 ) {
   const leavingRecords: RouteRecordNormalized[] = []
   const updatingRecords: RouteRecordNormalized[] = []
@@ -578,33 +846,4 @@ function extractChangingRecords(
   }
 
   return [leavingRecords, updatingRecords, enteringRecords]
-}
-
-// function isSameLocation(
-//   a: Immutable<RouteLocationNormalized>,
-//   b: Immutable<RouteLocationNormalized>
-// ): boolean {
-//   return (
-//     a.name === b.name &&
-//     a.path === b.path &&
-//     a.hash === b.hash &&
-//     isSameLocationObject(a.query, b.query) &&
-//     a.matched.length === b.matched.length &&
-//     a.matched.every((record, i) => isSameRouteRecord(record, b.matched[i]))
-//   )
-// }
-
-function isSameRouteLocation(
-  a: RouteLocationNormalized,
-  b: RouteLocationNormalized
-): boolean {
-  let aLastIndex = a.matched.length - 1
-  let bLastIndex = b.matched.length - 1
-
-  return (
-    aLastIndex > -1 &&
-    aLastIndex === bLastIndex &&
-    isSameRouteRecord(a.matched[aLastIndex], b.matched[bLastIndex]) &&
-    isSameLocationObject(a.params, b.params)
-  )
 }

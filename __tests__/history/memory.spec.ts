@@ -1,4 +1,4 @@
-import createMemoryHistory from '../../src/history/memory'
+import { createMemoryHistory } from '../../src/history/memory'
 import {
   START,
   HistoryLocationNormalized,
@@ -9,11 +9,11 @@ const loc: RawHistoryLocation = '/foo'
 
 const loc2: RawHistoryLocation = '/bar'
 
-const normaliezedLoc: HistoryLocationNormalized = {
+const normalizedLoc: HistoryLocationNormalized = {
   fullPath: '/foo',
 }
 
-const normaliezedLoc2: HistoryLocationNormalized = {
+const normalizedLoc2: HistoryLocationNormalized = {
   fullPath: '/bar',
 }
 
@@ -60,21 +60,21 @@ describe('Memory history', () => {
     const history = createMemoryHistory()
     history.push(loc)
     history.push(loc2)
-    history.back()
-    expect(history.location).toEqual(normaliezedLoc)
-    history.back()
+    history.go(-1)
+    expect(history.location).toEqual(normalizedLoc)
+    history.go(-1)
     expect(history.location).toEqual(START)
   })
 
   it('does nothing with back if queue contains only one element', () => {
     const history = createMemoryHistory()
-    history.back()
+    history.go(-1)
     expect(history.location).toEqual(START)
   })
 
   it('does nothing with forward if at end of log', () => {
     const history = createMemoryHistory()
-    history.forward()
+    history.go(1)
     expect(history.location).toEqual(START)
   })
 
@@ -82,27 +82,27 @@ describe('Memory history', () => {
     const history = createMemoryHistory()
     history.push(loc)
     history.push(loc2)
-    history.back()
-    history.back()
+    history.go(-1)
+    history.go(-1)
     expect(history.location).toEqual(START)
-    history.forward()
-    expect(history.location).toEqual(normaliezedLoc)
-    history.forward()
-    expect(history.location).toEqual(normaliezedLoc2)
+    history.go(1)
+    expect(history.location).toEqual(normalizedLoc)
+    history.go(1)
+    expect(history.location).toEqual(normalizedLoc2)
   })
 
   it('can push in the middle of the history', () => {
     const history = createMemoryHistory()
     history.push(loc)
     history.push(loc2)
-    history.back()
-    history.back()
+    history.go(-1)
+    history.go(-1)
     expect(history.location).toEqual(START)
     history.push(loc2)
-    expect(history.location).toEqual(normaliezedLoc2)
+    expect(history.location).toEqual(normalizedLoc2)
     // does nothing
-    history.forward()
-    expect(history.location).toEqual(normaliezedLoc2)
+    history.go(1)
+    expect(history.location).toEqual(normalizedLoc2)
   })
 
   it('can listen to navigations', () => {
@@ -110,20 +110,18 @@ describe('Memory history', () => {
     const spy = jest.fn()
     history.listen(spy)
     history.push(loc)
-    history.back()
+    history.go(-1)
     expect(spy).toHaveBeenCalledTimes(1)
-    expect(spy).toHaveBeenCalledWith(START, normaliezedLoc, {
+    expect(spy).toHaveBeenCalledWith(START, normalizedLoc, {
       direction: 'back',
-      distance: -1,
-      // TODO: should be something else
+      delta: -1,
       type: 'pop',
     })
-    history.forward()
+    history.go(1)
     expect(spy).toHaveBeenCalledTimes(2)
-    expect(spy).toHaveBeenLastCalledWith(normaliezedLoc, START, {
+    expect(spy).toHaveBeenLastCalledWith(normalizedLoc, START, {
       direction: 'forward',
-      distance: 1,
-      // TODO: should be something else
+      delta: 1,
       type: 'pop',
     })
   })
@@ -136,11 +134,11 @@ describe('Memory history', () => {
     history.listen(spy)()
     const remove = history.listen(spy2)
     history.push(loc)
-    history.back()
+    history.go(-1)
     expect(spy).not.toHaveBeenCalled()
     expect(spy2).toHaveBeenCalledTimes(1)
     remove()
-    history.forward()
+    history.go(1)
     expect(spy).not.toHaveBeenCalled()
     expect(spy2).toHaveBeenCalledTimes(1)
   })
@@ -154,12 +152,12 @@ describe('Memory history', () => {
     rem()
     rem()
     history.push(loc)
-    history.back()
+    history.go(-1)
     expect(spy).not.toHaveBeenCalled()
     expect(spy2).toHaveBeenCalledTimes(1)
     rem2()
     rem2()
-    history.forward()
+    history.go(1)
     expect(spy).not.toHaveBeenCalled()
     expect(spy2).toHaveBeenCalledTimes(1)
   })
@@ -170,7 +168,7 @@ describe('Memory history', () => {
     const spy = jest.fn()
     history.listen(spy)
     history.destroy()
-    history.back()
+    history.go(-1)
     expect(spy).not.toHaveBeenCalled()
   })
 
@@ -179,9 +177,9 @@ describe('Memory history', () => {
     const spy = jest.fn()
     history.listen(spy)
     history.push(loc)
-    history.back(false)
+    history.go(-1, false)
     expect(spy).not.toHaveBeenCalled()
-    history.forward(false)
+    history.go(1, false)
     expect(spy).not.toHaveBeenCalled()
   })
 })

@@ -16,16 +16,16 @@ fs.readdirSync(__dirname).forEach(dir => {
 
 const globalCss = resolve(__dirname, 'global.css')
 
-module.exports = {
+const config = (env = {}) => ({
   // Expose __dirname to allow automatically setting basename.
   context: __dirname,
   node: {
     __dirname: true,
   },
 
-  mode: process.env.NODE_ENV || 'development',
+  mode: env.prod ? 'production' : 'development',
+  devtool: env.prod ? 'source-map' : 'inline-source-map',
 
-  devtool: 'inline-source-map',
   devServer: {
     historyApiFallback: {
       rewrites: examples.map(name => ({
@@ -66,16 +66,16 @@ module.exports = {
   },
   resolve: {
     alias: {
-      vue: resolve(__dirname, '../node_modules/vue/dist/vue.esm.js'),
+      vue: resolve(__dirname, '../node_modules/vue/dist/vue.esm-bundler.js'),
       'vue-router': join(__dirname, '..', 'src'),
     },
     // Add `.ts` and `.tsx` as a resolvable extension.
-    extensions: ['.ts', '.tsx', '.js'],
+    extensions: ['.ts', '.tsx', '.js', '.vue'],
   },
   plugins: [
     new webpack.DefinePlugin({
       __DEV__: JSON.stringify(process.env.NODE_ENV !== 'production'),
-      __BROWSER__: `typeof window !== 'undefined'`,
+      __BROWSER__: 'true',
       'process.env': {
         NODE_ENV: JSON.stringify(process.env.NODE_ENV),
       },
@@ -94,4 +94,6 @@ module.exports = {
       template: resolve(__dirname, 'index.html'),
     }),
   ],
-}
+})
+
+module.exports = config
